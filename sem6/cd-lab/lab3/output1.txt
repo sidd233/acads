@@ -1,0 +1,4 @@
+Keywords   : 4
+Identifiers: 5
+Operators  : 4
+Constants  : 3

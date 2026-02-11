@@ -1,0 +1,26 @@
+========== TOKEN STREAM ==========
+<KEYWORD, int>
+<IDENTIFIER, x>
+<OPERATOR, =>
+<CONSTANT, 5>
+<SPECIAL, ;>
+<KEYWORD, int>
+<IDENTIFIER, y>
+<OPERATOR, =>
+<IDENTIFIER, x>
+<OPERATOR, +>
+<CONSTANT, 10>
+<SPECIAL, ;>
+
+========== TOKEN COUNTS ==========
+Number of keywords    = 2
+Number of identifiers = 3
+Number of operators   = 3
+Number of constants   = 2
+
+========== SYMBOL TABLE ==========
+Identifier           Occurrences
+----------------------------------
+x                    2
+y                    1
+==================================

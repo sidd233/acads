@@ -1,0 +1,39 @@
+<KEYWORD, begin>
+<KEYWORD, int>
+<ID, a>
+<DELIMITER, ,>
+<ID, b>
+<DELIMITER, ;>
+<KEYWORD, float>
+<ID, sum>
+<DELIMITER, ;>
+<ID, a>
+<RELOP, =>
+<NUM_INT, 10>
+<DELIMITER, ;>
+<ID, b>
+<RELOP, =>
+<NUM_INT, 20>
+<DELIMITER, ;>
+<ID, sum>
+<RELOP, =>
+<ID, a>
+<OPERATOR, +>
+<ID, b>
+<DELIMITER, ;>
+<KEYWORD, if>
+<DELIMITER, (>
+<ID, a>
+<RELOP, <>
+<ID, b>
+<DELIMITER, )>
+<KEYWORD, print>
+<ID, sum>
+<DELIMITER, ;>
+<KEYWORD, end>
+
+============= SYMBOL TABLE =============
+No.   Name                 Type       Line      
+1     a                    ID         2         
+2     b                    ID         2         
+3     sum                  ID         3         

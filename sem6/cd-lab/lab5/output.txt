@@ -1,0 +1,4 @@
+Syntax Error at line 2, column 7: expected ')', found end of line
+Syntax Error at line 3, column 4: expected '(' or 'id', found '*'
+Syntax Error at line 3, column 4: expected end of expression, found 'i'
+Total syntax errors: 3
