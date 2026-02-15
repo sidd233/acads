@@ -3,381 +3,751 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_PROD 50
-#define MAX_LEN 100
+// Assuming e as a terminal not as epsilon. ALso the program dosn't consider spaces.
+#define MAX_PROD 200
+#define MAX_LEN 200
+#define MAX_TERM 128
 #define MAX_NONTERM 26
-#define MAX_TERM 50
 
+// Internal epsilon marker (NOT the terminal 'e')
+#define EPS '@'
 typedef struct
 {
-    char lhs;
-    char rhs[MAX_LEN];
+    char lhs;          // Non-terminal (A..Z)
+    char rhs[MAX_LEN]; // Sequence of symbols (terminals/nonterminals), EPS allowed as single char
 } Production;
 
-Production grammar[MAX_PROD];
-int prodCount = 0;
+static Production grammar[MAX_PROD];
+static int prodCount = 0;
 
-char FIRST[MAX_NONTERM][MAX_TERM];
-char FOLLOW[MAX_NONTERM][MAX_TERM];
-int firstCount[MAX_NONTERM];
-int followCount[MAX_NONTERM];
+// Non-terminal alias for printing primes (e.g., Z represents S')
+static char aliasOf[256][16]; // aliasOf['Z']="S'" etc.
 
-char parsingTable[MAX_NONTERM][MAX_TERM][MAX_LEN];
+// Terminals list for table columns
+static char terminals[MAX_TERM];
+static int termCount = 0;
 
-char stack[MAX_LEN];
-int top = -1;
+// Sets as boolean tables over ASCII
+static int FIRSTset[256][256];
+static int FOLLOWset[256][256];
 
-char nonTerminals[MAX_NONTERM];
-int ntCount = 0;
-char terminals[MAX_TERM];
-int tCount = 0;
+// Parsing table: for each [NonTerm][Terminal] store RHS string; empty if none
+static char parsingTable[256][256][MAX_LEN];
 
-void push(char c)
-{
-    stack[++top] = c;
-}
+// Stack for parsing
+static char stackArr[MAX_LEN];
+static int top = -1;
 
-char pop()
-{
-    return stack[top--];
-}
+/* -----------------------------
+   Stack utilities
+----------------------------- */
+static void push(char c) { stackArr[++top] = c; }
+static char popStack(void) { return stackArr[top--]; }
+static char peekStack(void) { return stackArr[top]; }
 
-void displayStack()
+static void displayStack(void)
 {
     for (int i = 0; i <= top; i++)
-        printf("%c", stack[i]);
-}
-
-int findNonTerminal(char c)
-{
-    for (int i = 0; i < ntCount; i++)
-        if (nonTerminals[i] == c)
-            return i;
-    return -1;
-}
-
-int findTerminal(char c)
-{
-    for (int i = 0; i < tCount; i++)
-        if (terminals[i] == c)
-            return i;
-    return -1;
-}
-
-void addNonTerminal(char c)
-{
-    if (findNonTerminal(c) == -1)
-        nonTerminals[ntCount++] = c;
-}
-
-void addTerminal(char c)
-{
-    if (c != 'e' && !isupper(c) && findTerminal(c) == -1)
-        terminals[tCount++] = c;
-}
-
-void readGrammar()
-{
-    int n;
-    printf("Enter number of productions: ");
-    scanf("%d", &n);
-    getchar();
-
-    for (int i = 0; i < n; i++)
     {
-        printf("Enter production (e.g. S->Sa|b): ");
-        fgets(grammar[prodCount].rhs, MAX_LEN, stdin);
-        grammar[prodCount].rhs[strcspn(grammar[prodCount].rhs, "\n")] = 0;
-        grammar[prodCount].lhs = grammar[prodCount].rhs[0];
-        prodCount++;
+        char c = stackArr[i];
+        if (aliasOf[(unsigned char)c][0])
+            printf("%s", aliasOf[(unsigned char)c]);
+        else
+            printf("%c", c);
     }
 }
 
-void displayGrammar()
+/* -----------------------------
+   Helper utilities
+----------------------------- */
+static int isNonTerm(char c) { return (c >= 'A' && c <= 'Z'); }
+static int isEpsStr(const char *s)
 {
-    for (int i = 0; i < prodCount; i++)
+    return (!strcmp(s, "epsilon") || !strcmp(s, "eps") || !strcmp(s, "@") || !strcmp(s, "#"));
+}
+
+static void printSymbol(char c)
+{
+    if (c == EPS)
     {
-        printf("%c -> ", grammar[i].lhs);
-        char *start = strstr(grammar[i].rhs, "->");
-        if (start)
-            printf("%s\n", start + 2);
+        printf("epsilon");
+        return;
+    }
+    if (aliasOf[(unsigned char)c][0])
+    {
+        printf("%s", aliasOf[(unsigned char)c]);
+        return;
+    }
+    printf("%c", c);
+}
+
+static void printRHS(const char *rhs)
+{
+    if (rhs[0] == EPS && rhs[1] == '\0')
+    {
+        printf("epsilon");
+        return;
+    }
+    for (int i = 0; rhs[i]; i++)
+    {
+        if (rhs[i] == EPS)
+            printf("epsilon");
+        else
+            printSymbol(rhs[i]);
     }
 }
 
-void removeLeftRecursion()
+static void addProduction(char lhs, const char *rhs)
 {
-    Production newGrammar[MAX_PROD];
-    int newCount = 0;
+    if (prodCount >= MAX_PROD)
+    {
+        fprintf(stderr, "Too many productions.\n");
+        exit(1);
+    }
+    grammar[prodCount].lhs = lhs;
+    strncpy(grammar[prodCount].rhs, rhs, MAX_LEN - 1);
+    grammar[prodCount].rhs[MAX_LEN - 1] = '\0';
+    prodCount++;
+}
 
+static void rebuildTerminals(void)
+{
+    int seen[256] = {0};
+    termCount = 0;
+
+    // Collect terminals from RHS
     for (int i = 0; i < prodCount; i++)
     {
-        char lhs = grammar[i].lhs;
-        char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
-
-        char alpha[10][30];
-        char beta[10][30];
-        int alphaCount = 0, betaCount = 0;
-
-        char temp[MAX_LEN];
-        strcpy(temp, rhsStart);
-        char *token = strtok(temp, "|");
-
-        while (token != NULL)
+        for (int j = 0; grammar[i].rhs[j]; j++)
         {
-            if (token[0] == lhs)
+            unsigned char c = (unsigned char)grammar[i].rhs[j];
+            if (c == (unsigned char)EPS)
+                continue;
+            if (!isNonTerm((char)c) && c != '|')
             {
-                strcpy(alpha[alphaCount++], token + 1);
+                if (!seen[c])
+                {
+                    terminals[termCount++] = (char)c;
+                    seen[c] = 1;
+                }
+            }
+        }
+    }
+    // Ensure '$' is present
+    if (!seen[(unsigned char)'$'])
+        terminals[termCount++] = '$';
+
+    // Sort terminals for pretty printing
+    for (int i = 0; i < termCount; i++)
+    {
+        for (int j = i + 1; j < termCount; j++)
+        {
+            if (terminals[j] < terminals[i])
+            {
+                char t = terminals[i];
+                terminals[i] = terminals[j];
+                terminals[j] = t;
+            }
+        }
+    }
+}
+
+static void clearAllSets(void)
+{
+    memset(FIRSTset, 0, sizeof(FIRSTset));
+    memset(FOLLOWset, 0, sizeof(FOLLOWset));
+}
+
+static void clearParsingTable(void)
+{
+    for (int A = 0; A < 256; A++)
+        for (int t = 0; t < 256; t++)
+            parsingTable[A][t][0] = '\0';
+}
+
+static int addToSet(int setTable[256][256], char X, char a)
+{
+    if (!setTable[(unsigned char)X][(unsigned char)a])
+    {
+        setTable[(unsigned char)X][(unsigned char)a] = 1;
+        return 1;
+    }
+    return 0;
+}
+
+static int addSetMinusEps(int setTable[256][256], char dest, int srcSet[256])
+{
+    int changed = 0;
+    for (int c = 0; c < 256; c++)
+    {
+        if (c == EPS)
+            continue;
+        if (srcSet[c])
+            changed |= addToSet(setTable, dest, (char)c);
+    }
+    return changed;
+}
+
+/* -----------------------------
+   Grammar IO
+----------------------------- */
+static void displayGrammar(void)
+{
+    // Print grouped by lhs (like A -> ... | ...)
+    int printed[256] = {0};
+
+    for (int i = 0; i < prodCount; i++)
+    {
+        char A = grammar[i].lhs;
+        if (printed[(unsigned char)A])
+            continue;
+
+        printed[(unsigned char)A] = 1;
+
+        printSymbol(A);
+        printf(" -> ");
+
+        int firstAlt = 1;
+        for (int j = 0; j < prodCount; j++)
+        {
+            if (grammar[j].lhs == A)
+            {
+                if (!firstAlt)
+                    printf(" | ");
+                printRHS(grammar[j].rhs);
+                firstAlt = 0;
+            }
+        }
+        printf("\n");
+    }
+}
+
+static void parseAndAddLine(const char *lineRaw)
+{
+    // Expect something like: S->Sa|bSc|epsilon
+    char line[MAX_LEN];
+    strncpy(line, lineRaw, MAX_LEN - 1);
+    line[MAX_LEN - 1] = '\0';
+
+    // remove spaces
+    char tmp[MAX_LEN];
+    int k = 0;
+    for (int i = 0; line[i] && k < MAX_LEN - 1; i++)
+    {
+        if (!isspace((unsigned char)line[i]))
+            tmp[k++] = line[i];
+    }
+    tmp[k] = '\0';
+
+    if ((int)strlen(tmp) < 4 || tmp[1] != '-' || tmp[2] != '>')
+    {
+        fprintf(stderr, "Invalid production format: %s\n", tmp);
+        exit(1);
+    }
+
+    char lhs = tmp[0];
+    if (!isNonTerm(lhs))
+    {
+        fprintf(stderr, "LHS must be a single uppercase non-terminal: %s\n", tmp);
+        exit(1);
+    }
+
+    const char *rhsAll = tmp + 3;
+
+    // split by '|'
+    char buf[MAX_LEN];
+    int bi = 0;
+    for (int i = 0;; i++)
+    {
+        char c = rhsAll[i];
+        if (c == '|' || c == '\0')
+        {
+            buf[bi] = '\0';
+
+            if (buf[0] == '\0')
+            {
+                // empty alternative treated as epsilon
+                char epsRhs[2] = {EPS, '\0'};
+                addProduction(lhs, epsRhs);
+            }
+            else if (isEpsStr(buf))
+            {
+                char epsRhs[2] = {EPS, '\0'};
+                addProduction(lhs, epsRhs);
             }
             else
             {
-                strcpy(beta[betaCount++], token);
-            }
-            token = strtok(NULL, "|");
-        }
-
-        if (alphaCount > 0)
-        {
-            char newNT = lhs + 1;
-
-            for (int j = 0; j < betaCount; j++)
-            {
-                newGrammar[newCount].lhs = lhs;
-                newGrammar[newCount].rhs[0] = lhs;
-                newGrammar[newCount].rhs[1] = '-';
-                newGrammar[newCount].rhs[2] = '>';
-                strcpy(newGrammar[newCount].rhs + 3, beta[j]);
-                int len = strlen(newGrammar[newCount].rhs);
-                newGrammar[newCount].rhs[len] = newNT;
-                newGrammar[newCount].rhs[len + 1] = '\0';
-                newCount++;
+                addProduction(lhs, buf);
             }
 
-            for (int j = 0; j < alphaCount; j++)
-            {
-                newGrammar[newCount].lhs = newNT;
-                newGrammar[newCount].rhs[0] = newNT;
-                newGrammar[newCount].rhs[1] = '-';
-                newGrammar[newCount].rhs[2] = '>';
-                strcpy(newGrammar[newCount].rhs + 3, alpha[j]);
-                int len = strlen(newGrammar[newCount].rhs);
-                newGrammar[newCount].rhs[len] = newNT;
-                newGrammar[newCount].rhs[len + 1] = '\0';
-                newCount++;
-            }
-
-            newGrammar[newCount].lhs = newNT;
-            newGrammar[newCount].rhs[0] = newNT;
-            newGrammar[newCount].rhs[1] = '-';
-            newGrammar[newCount].rhs[2] = '>';
-            strcpy(newGrammar[newCount].rhs + 3, "epsilon");
-            newCount++;
+            bi = 0;
+            if (c == '\0')
+                break;
         }
         else
         {
-            newGrammar[newCount++] = grammar[i];
+            if (bi < MAX_LEN - 1)
+                buf[bi++] = c;
         }
     }
-
-    prodCount = newCount;
-    for (int i = 0; i < newCount; i++)
-        grammar[i] = newGrammar[i];
 }
 
-void leftFactoring()
+static void readGrammar(void)
 {
-    int changed = 1;
+    int n;
+    printf("Enter number of productions: ");
+    if (scanf("%d", &n) != 1)
+        exit(1);
 
-    while (changed)
+    // consume newline
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF)
     {
-        changed = 0;
-        Production newGrammar[MAX_PROD];
-        int newCount = 0;
+    }
 
-        for (int i = 0; i < prodCount; i++)
+    prodCount = 0;
+    memset(aliasOf, 0, sizeof(aliasOf));
+
+    for (int i = 0; i < n; i++)
+    {
+        char line[MAX_LEN];
+        printf("Enter production (e.g., S->Sa|bSc|epsilon): ");
+        if (!fgets(line, sizeof(line), stdin))
+            exit(1);
+        // strip newline
+        line[strcspn(line, "\r\n")] = '\0';
+        parseAndAddLine(line);
+    }
+
+    rebuildTerminals();
+}
+
+/* -----------------------------
+   Fresh new non-terminal selection
+----------------------------- */
+static char newNonTerminal(void)
+{
+    // Find unused uppercase letter
+    int used[256] = {0};
+    for (int i = 0; i < prodCount; i++)
+        used[(unsigned char)grammar[i].lhs] = 1;
+    for (int i = 0; i < prodCount; i++)
+    {
+        for (int j = 0; grammar[i].rhs[j]; j++)
         {
-            char lhs = grammar[i].lhs;
-            char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
+            char c = grammar[i].rhs[j];
+            if (isNonTerm(c))
+                used[(unsigned char)c] = 1;
+        }
+    }
+    for (char c = 'A'; c <= 'Z'; c++)
+    {
+        if (!used[(unsigned char)c])
+            return c;
+    }
+    fprintf(stderr, "No free non-terminals left (A-Z exhausted).\n");
+    exit(1);
+}
 
-            char alternatives[10][30];
-            int altCount = 0;
+/* -----------------------------
+   Task 1: Remove immediate left recursion
+----------------------------- */
+static void removeLeftRecursion(void)
+{
+    // For each non-terminal A:
+    // Partition A-productions into:
+    //   A -> Aα  (alpha list)
+    //   A -> β   (beta list)
+    // Transform if alpha exists.
 
-            char temp[MAX_LEN];
-            strcpy(temp, rhsStart);
-            char *token = strtok(temp, "|");
-            while (token != NULL)
+    int i = 0;
+    while (i < prodCount)
+    {
+        char A = grammar[i].lhs;
+
+        // collect indices for this A
+        int idx[MAX_PROD], cnt = 0;
+        for (int j = 0; j < prodCount; j++)
+            if (grammar[j].lhs == A)
+                idx[cnt++] = j;
+
+        // alpha/beta rhs arrays
+        char alpha[MAX_PROD][MAX_LEN];
+        int aCnt = 0;
+        char beta[MAX_PROD][MAX_LEN];
+        int bCnt = 0;
+
+        for (int k = 0; k < cnt; k++)
+        {
+            const char *rhs = grammar[idx[k]].rhs;
+            if (rhs[0] == A)
             {
-                strcpy(alternatives[altCount++], token);
-                token = strtok(NULL, "|");
-            }
-
-            int maxPrefix = 0;
-            for (int j = 0; j < altCount - 1; j++)
-            {
-                for (int k = j + 1; k < altCount; k++)
+                // alpha is rhs[1..]
+                if (rhs[1] == '\0')
                 {
-                    int len = 0;
-                    while (alternatives[j][len] && alternatives[k][len] &&
-                           alternatives[j][len] == alternatives[k][len])
-                        len++;
-                    if (len > maxPrefix)
-                        maxPrefix = len;
+                    // A -> A (alpha empty) treat as epsilon alpha
+                    alpha[aCnt][0] = EPS;
+                    alpha[aCnt][1] = '\0';
                 }
-            }
-
-            if (maxPrefix > 0)
-            {
-                changed = 1;
-                char prefix[30];
-                strncpy(prefix, alternatives[0], maxPrefix);
-                prefix[maxPrefix] = '\0';
-
-                char newNT = 'X';
-
-                newGrammar[newCount].lhs = lhs;
-                newGrammar[newCount].rhs[0] = lhs;
-                newGrammar[newCount].rhs[1] = '-';
-                newGrammar[newCount].rhs[2] = '>';
-                strcpy(newGrammar[newCount].rhs + 3, prefix);
-                int len = strlen(newGrammar[newCount].rhs);
-                newGrammar[newCount].rhs[len] = newNT;
-                newGrammar[newCount].rhs[len + 1] = '\0';
-                newCount++;
-
-                for (int j = 0; j < altCount; j++)
+                else
                 {
-                    if (strncmp(alternatives[j], prefix, maxPrefix) == 0)
-                    {
-                        newGrammar[newCount].lhs = newNT;
-                        newGrammar[newCount].rhs[0] = newNT;
-                        newGrammar[newCount].rhs[1] = '-';
-                        newGrammar[newCount].rhs[2] = '>';
-
-                        if (strlen(alternatives[j] + maxPrefix) == 0)
-                            strcpy(newGrammar[newCount].rhs + 3, "epsilon");
-                        else
-                            strcpy(newGrammar[newCount].rhs + 3, alternatives[j] + maxPrefix);
-                        newCount++;
-                    }
+                    strncpy(alpha[aCnt], rhs + 1, MAX_LEN - 1);
+                    alpha[aCnt][MAX_LEN - 1] = '\0';
                 }
+                aCnt++;
             }
             else
             {
-                newGrammar[newCount++] = grammar[i];
+                strncpy(beta[bCnt], rhs, MAX_LEN - 1);
+                beta[bCnt][MAX_LEN - 1] = '\0';
+                bCnt++;
             }
         }
 
-        prodCount = newCount;
-        for (int i = 0; i < newCount; i++)
-            grammar[i] = newGrammar[i];
+        if (aCnt > 0)
+        {
+            if (bCnt == 0)
+            {
+                // If no beta, grammar is problematic for immediate LR removal
+                // We can add epsilon as beta to proceed.
+                beta[bCnt][0] = EPS;
+                beta[bCnt][1] = '\0';
+                bCnt++;
+            }
+
+            char Aprime = newNonTerminal();
+
+            // alias Aprime as A'
+            char alias[16];
+            snprintf(alias, sizeof(alias), "%c'", A);
+            strncpy(aliasOf[(unsigned char)Aprime], alias, sizeof(aliasOf[0]) - 1);
+
+            // Remove all productions with lhs A from grammar by rebuilding list
+            Production newG[MAX_PROD];
+            int newCount = 0;
+            for (int j = 0; j < prodCount; j++)
+            {
+                if (grammar[j].lhs != A)
+                    newG[newCount++] = grammar[j];
+            }
+            // write back
+            memcpy(grammar, newG, sizeof(Production) * newCount);
+            prodCount = newCount;
+
+            // Add A -> beta Aprime
+            for (int k = 0; k < bCnt; k++)
+            {
+                char rhsNew[MAX_LEN] = {0};
+                if (beta[k][0] == EPS && beta[k][1] == '\0')
+                {
+                    // A -> Aprime
+                    rhsNew[0] = Aprime;
+                    rhsNew[1] = '\0';
+                }
+                else
+                {
+                    snprintf(rhsNew, sizeof(rhsNew), "%s%c", beta[k], Aprime);
+                }
+                addProduction(A, rhsNew);
+            }
+
+            // Add Aprime -> alpha Aprime
+            for (int k = 0; k < aCnt; k++)
+            {
+                char rhsNew[MAX_LEN] = {0};
+                if (alpha[k][0] == EPS && alpha[k][1] == '\0')
+                {
+                    // alpha is epsilon => Aprime -> Aprime (useless); skip
+                    // Better: keep only epsilon production below
+                }
+                else
+                {
+                    snprintf(rhsNew, sizeof(rhsNew), "%s%c", alpha[k], Aprime);
+                    addProduction(Aprime, rhsNew);
+                }
+            }
+
+            // Add Aprime -> epsilon
+            char epsRhs[2] = {EPS, '\0'};
+            addProduction(Aprime, epsRhs);
+
+            rebuildTerminals();
+            // Restart scan because grammar changed
+            i = 0;
+            continue;
+        }
+
+        // move i forward to next different lhs
+        while (i < prodCount && grammar[i].lhs == A)
+            i++;
     }
 }
 
-void collectSymbols()
+/* -----------------------------
+   Task 2: Left factoring
+----------------------------- */
+static int longestCommonPrefix(const char *a, const char *b)
 {
-    ntCount = 0;
-    tCount = 0;
+    int i = 0;
+    while (a[i] && b[i] && a[i] == b[i] && a[i] != EPS && b[i] != EPS)
+        i++;
+    return i;
+}
 
+static int leftFactorOnceFor(char A)
+{
+    // Find the best (longest) common prefix among productions of A
+    int idx[MAX_PROD], cnt = 0;
     for (int i = 0; i < prodCount; i++)
-    {
-        addNonTerminal(grammar[i].lhs);
+        if (grammar[i].lhs == A)
+            idx[cnt++] = i;
+    if (cnt < 2)
+        return 0;
 
-        char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
-        for (int j = 0; rhsStart[j]; j++)
+    int bestLen = 0;
+    char bestPrefix[MAX_LEN] = {0};
+
+    for (int i = 0; i < cnt; i++)
+    {
+        for (int j = i + 1; j < cnt; j++)
         {
-            if (isupper(rhsStart[j]))
-                addNonTerminal(rhsStart[j]);
-            else if (rhsStart[j] != '|' && rhsStart[j] != 'e')
-                addTerminal(rhsStart[j]);
+            int l = longestCommonPrefix(grammar[idx[i]].rhs, grammar[idx[j]].rhs);
+            if (l > bestLen)
+            {
+                bestLen = l;
+                strncpy(bestPrefix, grammar[idx[i]].rhs, l);
+                bestPrefix[l] = '\0';
+            }
         }
     }
+    if (bestLen <= 0)
+        return 0;
 
-    addTerminal('$');
-}
+    // Create new non-terminal X for the factored part
+    char X = newNonTerminal();
 
-int addToFirst(int nt, char c)
-{
-    for (int i = 0; i < firstCount[nt]; i++)
-        if (FIRST[nt][i] == c)
-            return 0;
-    FIRST[nt][firstCount[nt]++] = c;
+    // Rewrite:
+    // A -> prefix X
+    // X -> suffixes...
+    // for all A-productions that start with prefix
+
+    // Collect suffixes for those productions
+    char suffixes[MAX_PROD][MAX_LEN];
+    int sCnt = 0;
+
+    // Rebuild grammar excluding the matching productions
+    Production newG[MAX_PROD];
+    int newCount = 0;
+
+    int removedAny = 0;
+    for (int i = 0; i < prodCount; i++)
+    {
+        if (grammar[i].lhs == A && strncmp(grammar[i].rhs, bestPrefix, bestLen) == 0)
+        {
+            removedAny = 1;
+            const char *old = grammar[i].rhs;
+            const char *suf = old + bestLen;
+            if (*suf == '\0')
+            {
+                suffixes[sCnt][0] = EPS;
+                suffixes[sCnt][1] = '\0';
+            }
+            else
+            {
+                strncpy(suffixes[sCnt], suf, MAX_LEN - 1);
+                suffixes[sCnt][MAX_LEN - 1] = '\0';
+            }
+            sCnt++;
+        }
+        else
+        {
+            newG[newCount++] = grammar[i];
+        }
+    }
+    if (!removedAny || sCnt < 2)
+        return 0;
+
+    memcpy(grammar, newG, sizeof(Production) * newCount);
+    prodCount = newCount;
+
+    // Add factored A -> prefix X
+    char rhsNew[MAX_LEN] = {0};
+    snprintf(rhsNew, sizeof(rhsNew), "%s%c", bestPrefix, X);
+    addProduction(A, rhsNew);
+
+    // Add X -> suffixes
+    for (int i = 0; i < sCnt; i++)
+        addProduction(X, suffixes[i]);
+
+    rebuildTerminals();
     return 1;
 }
 
-void computeFirstOf(char symbol)
+static void leftFactoring(void)
 {
-    int idx = findNonTerminal(symbol);
-    if (idx == -1)
-        return;
-
-    for (int i = 0; i < prodCount; i++)
+    int changed = 1;
+    while (changed)
     {
-        if (grammar[i].lhs != symbol)
-            continue;
+        changed = 0;
 
-        char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
-        char temp[MAX_LEN];
-        strcpy(temp, rhsStart);
-        char *token = strtok(temp, "|");
+        // Get current set of non-terminals
+        int seen[256] = {0};
+        char nts[64];
+        int ntc = 0;
 
-        while (token != NULL)
+        for (int i = 0; i < prodCount; i++)
         {
-            if (!isupper(token[0]))
+            char A = grammar[i].lhs;
+            if (!seen[(unsigned char)A])
             {
-                if (token[0] == 'e' && token[1] == 'p')
-                    addToFirst(idx, 'e');
-                else
-                    addToFirst(idx, token[0]);
+                nts[ntc++] = A;
+                seen[(unsigned char)A] = 1;
             }
-            else
+        }
+
+        for (int i = 0; i < ntc; i++)
+        {
+            char A = nts[i];
+            if (leftFactorOnceFor(A))
             {
-                computeFirstOf(token[0]);
-                int ntIdx = findNonTerminal(token[0]);
-                for (int k = 0; k < firstCount[ntIdx]; k++)
-                    addToFirst(idx, FIRST[ntIdx][k]);
+                changed = 1;
+                break; // restart scanning after a successful factoring
             }
-            token = strtok(NULL, "|");
         }
     }
 }
 
-void computeFirst()
+/* -----------------------------
+   FIRST/FOLLOW helpers
+----------------------------- */
+static int firstOfStringToSet(const char *alpha, int outSet[256])
 {
-    memset(firstCount, 0, sizeof(firstCount));
-    collectSymbols();
+    // outSet filled with FIRST(alpha); returns whether epsilon is in FIRST(alpha)
+    memset(outSet, 0, sizeof(int) * 256);
 
-    for (int i = 0; i < ntCount; i++)
-        computeFirstOf(nonTerminals[i]);
+    if (alpha[0] == '\0')
+    {
+        outSet[(unsigned char)EPS] = 1;
+        return 1;
+    }
+
+    int allCanBeEps = 1;
+
+    for (int i = 0; alpha[i]; i++)
+    {
+        char X = alpha[i];
+
+        if (X == EPS)
+        {
+            outSet[(unsigned char)EPS] = 1;
+            return 1;
+        }
+
+        if (!isNonTerm(X))
+        {
+            outSet[(unsigned char)X] = 1;
+            allCanBeEps = 0;
+            break;
+        }
+
+        // X is non-terminal
+        for (int c = 0; c < 256; c++)
+        {
+            if (c == EPS)
+                continue;
+            if (FIRSTset[(unsigned char)X][c])
+                outSet[c] = 1;
+        }
+
+        if (!FIRSTset[(unsigned char)X][(unsigned char)EPS])
+        {
+            allCanBeEps = 0;
+            break;
+        }
+    }
+
+    if (allCanBeEps)
+        outSet[(unsigned char)EPS] = 1;
+    return outSet[(unsigned char)EPS];
+}
+
+/* -----------------------------
+   Task 3: Compute FIRST
+----------------------------- */
+static void computeFirst(void)
+{
+    clearAllSets();
+
+    // Initialize FIRST of terminals (optional; we only store for nonterminals, but keeping is fine)
+    for (int t = 0; t < termCount; t++)
+    {
+        char a = terminals[t];
+        FIRSTset[(unsigned char)a][(unsigned char)a] = 1;
+    }
+    FIRSTset[(unsigned char)EPS][(unsigned char)EPS] = 1;
+
+    int changed = 1;
+    while (changed)
+    {
+        changed = 0;
+
+        for (int i = 0; i < prodCount; i++)
+        {
+            char A = grammar[i].lhs;
+            const char *rhs = grammar[i].rhs;
+
+            int firstAlpha[256];
+            firstOfStringToSet(rhs, firstAlpha);
+
+            // Add FIRST(rhs) - {eps} to FIRST(A)
+            changed |= addSetMinusEps(FIRSTset, A, firstAlpha);
+
+            // If eps in FIRST(rhs), add eps to FIRST(A)
+            if (firstAlpha[(unsigned char)EPS])
+                changed |= addToSet(FIRSTset, A, EPS);
+        }
+    }
 
     printf("\nFIRST Sets:\n");
-    for (int i = 0; i < ntCount; i++)
+    // Print FIRST for each non-terminal present
+    int seen[256] = {0};
+    for (int i = 0; i < prodCount; i++)
     {
-        printf("FIRST(%c) = { ", nonTerminals[i]);
-        for (int j = 0; j < firstCount[i]; j++)
+        char A = grammar[i].lhs;
+        if (seen[(unsigned char)A])
+            continue;
+        seen[(unsigned char)A] = 1;
+
+        printf("FIRST ( ");
+        printSymbol(A);
+        printf(" ) = { ");
+
+        int firstPrinted = 0;
+        for (int c = 0; c < 256; c++)
         {
-            if (FIRST[i][j] == 'e')
-                printf("epsilon");
-            else
-                printf("%c", FIRST[i][j]);
-            if (j < firstCount[i] - 1)
-                printf(", ");
+            if (FIRSTset[(unsigned char)A][c])
+            {
+                if (firstPrinted)
+                    printf(" , ");
+                if ((char)c == EPS)
+                    printf("epsilon");
+                else
+                    printSymbol((char)c);
+                firstPrinted = 1;
+            }
         }
         printf(" }\n");
     }
 }
 
-int addToFollow(int nt, char c)
+/* -----------------------------
+   Task 3: Compute FOLLOW
+----------------------------- */
+static void computeFollow(void)
 {
-    for (int i = 0; i < followCount[nt]; i++)
-        if (FOLLOW[nt][i] == c)
-            return 0;
-    FOLLOW[nt][followCount[nt]++] = c;
-    return 1;
-}
-
-void computeFollow()
-{
-    memset(followCount, 0, sizeof(followCount));
-    addToFollow(0, '$');
+    // start symbol is grammar[0].lhs as in PDF skeleton
+    char start = grammar[0].lhs;
+    addToSet(FOLLOWset, start, '$');
 
     int changed = 1;
     while (changed)
@@ -386,33 +756,40 @@ void computeFollow()
 
         for (int i = 0; i < prodCount; i++)
         {
-            char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
+            char A = grammar[i].lhs;
+            const char *rhs = grammar[i].rhs;
+            int n = (int)strlen(rhs);
 
-            for (int j = 0; rhsStart[j]; j++)
+            for (int p = 0; p < n; p++)
             {
-                if (isupper(rhsStart[j]))
-                {
-                    int idx = findNonTerminal(rhsStart[j]);
+                char B = rhs[p];
+                if (!isNonTerm(B))
+                    continue;
 
-                    if (rhsStart[j + 1] && rhsStart[j + 1] != '|')
+                // beta = rhs[p+1..]
+                char beta[MAX_LEN];
+                strncpy(beta, rhs + p + 1, MAX_LEN - 1);
+                beta[MAX_LEN - 1] = '\0';
+
+                int firstBeta[256];
+                int betaHasEps = firstOfStringToSet(beta, firstBeta);
+
+                // FOLLOW(B) += FIRST(beta) - {eps}
+                for (int c = 0; c < 256; c++)
+                {
+                    if (c == EPS)
+                        continue;
+                    if (firstBeta[c])
+                        changed |= addToSet(FOLLOWset, B, (char)c);
+                }
+
+                // If beta can be epsilon OR beta is empty: FOLLOW(B) += FOLLOW(A)
+                if (betaHasEps || beta[0] == '\0')
+                {
+                    for (int c = 0; c < 256; c++)
                     {
-                        if (isupper(rhsStart[j + 1]))
-                        {
-                            int nextIdx = findNonTerminal(rhsStart[j + 1]);
-                            for (int k = 0; k < firstCount[nextIdx]; k++)
-                                if (FIRST[nextIdx][k] != 'e')
-                                    changed |= addToFollow(idx, FIRST[nextIdx][k]);
-                        }
-                        else if (rhsStart[j + 1] != 'e')
-                        {
-                            changed |= addToFollow(idx, rhsStart[j + 1]);
-                        }
-                    }
-                    else
-                    {
-                        int lhsIdx = findNonTerminal(grammar[i].lhs);
-                        for (int k = 0; k < followCount[lhsIdx]; k++)
-                            changed |= addToFollow(idx, FOLLOW[lhsIdx][k]);
+                        if (FOLLOWset[(unsigned char)A][c])
+                            changed |= addToSet(FOLLOWset, B, (char)c);
                     }
                 }
             }
@@ -420,164 +797,275 @@ void computeFollow()
     }
 
     printf("\nFOLLOW Sets:\n");
-    for (int i = 0; i < ntCount; i++)
+    int seen[256] = {0};
+    for (int i = 0; i < prodCount; i++)
     {
-        printf("FOLLOW(%c) = { ", nonTerminals[i]);
-        for (int j = 0; j < followCount[i]; j++)
+        char A = grammar[i].lhs;
+        if (seen[(unsigned char)A])
+            continue;
+        seen[(unsigned char)A] = 1;
+
+        printf("FOLLOW ( ");
+        printSymbol(A);
+        printf(" ) = { ");
+
+        int firstPrinted = 0;
+        for (int c = 0; c < 256; c++)
         {
-            printf("%c", FOLLOW[i][j]);
-            if (j < followCount[i] - 1)
-                printf(", ");
+            if (FOLLOWset[(unsigned char)A][c])
+            {
+                if (firstPrinted)
+                    printf(" , ");
+                printSymbol((char)c);
+                firstPrinted = 1;
+            }
         }
         printf(" }\n");
     }
 }
 
-void constructParsingTable()
+/* -----------------------------
+   Task 4: Construct parsing table
+----------------------------- */
+static void constructParsingTable(void)
 {
-    for (int i = 0; i < MAX_NONTERM; i++)
-        for (int j = 0; j < MAX_TERM; j++)
-            parsingTable[i][j][0] = '\0';
+    clearParsingTable();
+
+    int conflict = 0;
 
     for (int i = 0; i < prodCount; i++)
     {
-        char lhs = grammar[i].lhs;
-        int ntIdx = findNonTerminal(lhs);
+        char A = grammar[i].lhs;
+        const char *alpha = grammar[i].rhs;
 
-        char *rhsStart = strstr(grammar[i].rhs, "->") + 2;
+        int firstAlpha[256];
+        int hasEps = firstOfStringToSet(alpha, firstAlpha);
 
-        if (!isupper(rhsStart[0]))
+        // For each terminal a in FIRST(alpha) - {eps}: M[A,a] = A->alpha
+        for (int c = 0; c < 256; c++)
         {
-            if (rhsStart[0] == 'e' && rhsStart[1] == 'p')
+            if (c == EPS)
+                continue;
+            if (firstAlpha[c])
             {
-                for (int j = 0; j < followCount[ntIdx]; j++)
+                if (parsingTable[(unsigned char)A][c][0] != '\0' &&
+                    strcmp(parsingTable[(unsigned char)A][c], alpha) != 0)
                 {
-                    int tIdx = findTerminal(FOLLOW[ntIdx][j]);
-                    parsingTable[ntIdx][tIdx][0] = lhs;
-                    parsingTable[ntIdx][tIdx][1] = '-';
-                    parsingTable[ntIdx][tIdx][2] = '>';
-                    strcpy(parsingTable[ntIdx][tIdx] + 3, rhsStart);
+                    conflict = 1;
+                }
+                else
+                {
+                    strncpy(parsingTable[(unsigned char)A][c], alpha, MAX_LEN - 1);
+                    parsingTable[(unsigned char)A][c][MAX_LEN - 1] = '\0';
                 }
             }
-            else
-            {
-                int tIdx = findTerminal(rhsStart[0]);
-                parsingTable[ntIdx][tIdx][0] = lhs;
-                parsingTable[ntIdx][tIdx][1] = '-';
-                parsingTable[ntIdx][tIdx][2] = '>';
-                strcpy(parsingTable[ntIdx][tIdx] + 3, rhsStart);
-            }
         }
-        else
+
+        // If eps in FIRST(alpha): for each b in FOLLOW(A), M[A,b]=A->alpha
+        if (hasEps)
         {
-            int rhsIdx = findNonTerminal(rhsStart[0]);
-            for (int j = 0; j < firstCount[rhsIdx]; j++)
+            for (int c = 0; c < 256; c++)
             {
-                if (FIRST[rhsIdx][j] != 'e')
+                if (FOLLOWset[(unsigned char)A][c])
                 {
-                    int tIdx = findTerminal(FIRST[rhsIdx][j]);
-                    parsingTable[ntIdx][tIdx][0] = lhs;
-                    parsingTable[ntIdx][tIdx][1] = '-';
-                    parsingTable[ntIdx][tIdx][2] = '>';
-                    strcpy(parsingTable[ntIdx][tIdx] + 3, rhsStart);
+                    if (parsingTable[(unsigned char)A][c][0] != '\0' &&
+                        strcmp(parsingTable[(unsigned char)A][c], alpha) != 0)
+                    {
+                        conflict = 1;
+                    }
+                    else
+                    {
+                        strncpy(parsingTable[(unsigned char)A][c], alpha, MAX_LEN - 1);
+                        parsingTable[(unsigned char)A][c][MAX_LEN - 1] = '\0';
+                    }
                 }
             }
         }
     }
+
+    if (conflict)
+    {
+        printf("\n[Warning] Conflicts detected: grammar may NOT be LL(1).\n");
+    }
 }
 
-void displayParsingTable()
+static void displayParsingTable(void)
 {
     printf("\nPredictive Parsing Table:\n");
-    printf("     ");
-    for (int i = 0; i < tCount; i++)
-        printf("%-15c", terminals[i]);
+
+    rebuildTerminals();
+
+    // header
+    printf("%-8s", "");
+    for (int t = 0; t < termCount; t++)
+    {
+        printf("%-12c", terminals[t]);
+    }
     printf("\n");
 
-    for (int i = 0; i < ntCount; i++)
+    // gather non-terminals
+    int seen[256] = {0};
+    char nts[64];
+    int ntc = 0;
+    for (int i = 0; i < prodCount; i++)
     {
-        printf("%-5c", nonTerminals[i]);
-        for (int j = 0; j < tCount; j++)
+        char A = grammar[i].lhs;
+        if (!seen[(unsigned char)A])
         {
-            if (parsingTable[i][j][0])
-                printf("%-15s", parsingTable[i][j]);
+            nts[ntc++] = A;
+            seen[(unsigned char)A] = 1;
+        }
+    }
+    // sort nts
+    for (int i = 0; i < ntc; i++)
+        for (int j = i + 1; j < ntc; j++)
+            if (nts[j] < nts[i])
+            {
+                char tmp = nts[i];
+                nts[i] = nts[j];
+                nts[j] = tmp;
+            }
+
+    // rows
+    for (int i = 0; i < ntc; i++)
+    {
+        char A = nts[i];
+        char rowName[16] = {0};
+        if (aliasOf[(unsigned char)A][0])
+            snprintf(rowName, sizeof(rowName), "%s", aliasOf[(unsigned char)A]);
+        else
+            snprintf(rowName, sizeof(rowName), "%c", A);
+
+        printf("%-8s", rowName);
+
+        for (int t = 0; t < termCount; t++)
+        {
+            char a = terminals[t];
+            if (parsingTable[(unsigned char)A][(unsigned char)a][0] == '\0')
+            {
+                printf("%-12s", "");
+            }
             else
-                printf("%-15s", " ");
+            {
+                // print "A->rhs" compactly
+                char cell[64];
+                snprintf(cell, sizeof(cell), "->");
+                // to keep table readable, only show RHS in cell
+                char rhsStr[48] = {0};
+                // build RHS string for display (epsilon handled)
+                if (parsingTable[(unsigned char)A][(unsigned char)a][0] == EPS &&
+                    parsingTable[(unsigned char)A][(unsigned char)a][1] == '\0')
+                {
+                    snprintf(rhsStr, sizeof(rhsStr), "epsilon");
+                }
+                else
+                {
+                    // raw rhs (may include alias nonterm letters)
+                    snprintf(rhsStr, sizeof(rhsStr), "%s", parsingTable[(unsigned char)A][(unsigned char)a]);
+                }
+                char out[64];
+                snprintf(out, sizeof(out), "%s%s", cell, rhsStr);
+                printf("%-12s", out);
+            }
         }
         printf("\n");
     }
 }
 
-void parseInputString()
+/* -----------------------------
+   Task 5: LL(1) parsing
+----------------------------- */
+static void pushRHSReversed(const char *rhs)
+{
+    // Push RHS to stack in reverse order; skip epsilon
+    int n = (int)strlen(rhs);
+    if (n == 1 && rhs[0] == EPS)
+        return;
+    for (int i = n - 1; i >= 0; i--)
+    {
+        if (rhs[i] == EPS)
+            continue;
+        push(rhs[i]);
+    }
+}
+
+static void parseInputString(void)
 {
     char input[MAX_LEN];
     printf("\nEnter input string (end with $): ");
-    scanf("%s", input);
+    if (scanf("%s", input) != 1)
+        return;
 
+    // init stack
     top = -1;
     push('$');
     push(grammar[0].lhs);
 
-    printf("\nStack\t\tInput\t\tProduction\n");
-    printf("------------------------------------------------------------\n");
-
     int ip = 0;
+
+    printf("\nStack\t\tInput\t\tProduction\n");
+    printf("-------------------------------------------------------------\n");
 
     while (top != -1)
     {
+        // display current stack
         displayStack();
         printf("\t\t%s\t\t", &input[ip]);
 
-        char stackTop = stack[top];
-        char currentInput = input[ip];
+        char X = peekStack();
+        char a = input[ip];
 
-        if (stackTop == currentInput)
+        if (X == '$' && a == '$')
         {
-            pop();
-            ip++;
-            printf("Match %c\n", currentInput);
-
-            if (stackTop == '$' && currentInput == '$')
-            {
-                printf("\nString Accepted\n");
-                return;
-            }
+            printf("Match $\n");
+            break;
         }
-        else if (isupper(stackTop))
+
+        if (!isNonTerm(X))
         {
-            int ntIdx = findNonTerminal(stackTop);
-            int tIdx = findTerminal(currentInput);
-
-            if (parsingTable[ntIdx][tIdx][0])
+            // terminal
+            if (X == a)
             {
-                printf("%s\n", parsingTable[ntIdx][tIdx]);
-                pop();
-
-                char *rhsStart = strstr(parsingTable[ntIdx][tIdx], "->") + 2;
-
-                if (strcmp(rhsStart, "epsilon") != 0 && rhsStart[0] != 'e')
-                {
-                    for (int j = strlen(rhsStart) - 1; j >= 0; j--)
-                        push(rhsStart[j]);
-                }
+                popStack();
+                ip++;
+                printf("Match %c\n", a);
             }
             else
             {
-                printf("Syntax Error\n");
+                printf("Syntax Error at symbol %c (expected %c)\n", a, X);
                 return;
             }
         }
         else
         {
-            printf("Syntax Error\n");
-            return;
+            // non-terminal: consult table
+            const char *rhs = parsingTable[(unsigned char)X][(unsigned char)a];
+            if (rhs[0] == '\0')
+            {
+                printf("Syntax Error at symbol %c (no rule)\n", a);
+                return;
+            }
+
+            // Apply production X -> rhs
+            popStack();
+
+            // Print production nicely
+            printSymbol(X);
+            printf(" -> ");
+            printRHS(rhs);
+            printf("\n");
+
+            pushRHSReversed(rhs);
         }
     }
 
     printf("\nString Accepted\n");
 }
 
-int main()
+/* -----------------------------
+   MAIN (matches PDF flow)
+----------------------------- */
+int main(void)
 {
     readGrammar();
 
@@ -594,9 +1082,10 @@ int main()
 
     computeFirst();
     computeFollow();
+
     constructParsingTable();
     displayParsingTable();
-    parseInputString();
 
+    parseInputString();
     return 0;
 }
