@@ -1,0 +1,13 @@
+Commands Used to Compile and Run Flex+Bison Parser
+
+1. Generate the Bison parser and header file
+   bison -d parser.y
+
+2. Generate the Flex lexical analyzer
+   flex lexer.l
+
+3. Compile the generated files using GCC
+   gcc parser.tab.c lex.yy.c -o parser -lfl
+
+4. Execute the parser using input redirection and append output to a file
+   ./parser < input.txt > output.txt

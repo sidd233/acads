@@ -108,10 +108,10 @@ acc_te_eq = np.mean(pred_te_eq == y3_te)
 
 print(f"\n  [Equal Priors] Train Acc: {acc_tr_eq:.4f} | Test Acc: {acc_te_eq:.4f}")
 print(f"  Test point [2.5, 2.8] → Predicted Class: {pred_tp_eq}")
-print_cm(cm_tr_eq, "Equal Priors – Train")
-print_cm(cm_te_eq, "Equal Priors – Test")
+print_cm(cm_tr_eq, "Equal Priors : Train")
+print_cm(cm_te_eq, "Equal Priors : Test")
 
-# Unequal Priors 
+# Unequal Priors
 gnb_uneq = GaussianNB(priors={0: 0.8, 1: 0.2})
 gnb_uneq.fit(X3_tr, y3_tr)
 
@@ -126,14 +126,14 @@ acc_te_uneq = np.mean(pred_te_uneq == y3_te)
 
 print(f"\n  [Unequal Priors P(C1)=0.8, P(C2)=0.2] Train Acc: {acc_tr_uneq:.4f} | Test Acc: {acc_te_uneq:.4f}")
 print(f"  Test point [2.5, 2.8] → Predicted Class: {pred_tp_uneq}")
-print_cm(cm_tr_uneq, "Unequal Priors – Train")
-print_cm(cm_te_uneq, "Unequal Priors – Test")
+print_cm(cm_tr_uneq, "Unequal Priors : Train")
+print_cm(cm_te_uneq, "Unequal Priors : Test")
 
 # Combined Decision Boundary Plot
 fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-plot_boundary(axes[0], gnb_eq,   X3, y3, "Q3 – Equal Priors (0.5 / 0.5)",         test_point)
-plot_boundary(axes[1], gnb_uneq, X3, y3, "Q3 – Unequal Priors (0.8 / 0.2)",       test_point)
-plt.suptitle("Gaussian Naive Bayes – Decision Boundaries", fontsize=12, fontweight="bold")
+plot_boundary(axes[0], gnb_eq,   X3, y3, "Q3 : Equal Priors (0.5 / 0.5)",         test_point)
+plot_boundary(axes[1], gnb_uneq, X3, y3, "Q3 : Unequal Priors (0.8 / 0.2)",       test_point)
+plt.suptitle("Gaussian Naive Bayes : Decision Boundaries", fontsize=12, fontweight="bold")
 plt.tight_layout()
 plt.savefig("plots/q3_decision_boundaries.png", dpi=150)
 plt.close()
@@ -151,11 +151,11 @@ def plot_cm(ax, cm, title):
     ax.set_title(title, fontsize=10)
 
 fig, axes = plt.subplots(2, 2, figsize=(9, 7))
-plot_cm(axes[0,0], cm_tr_eq,   "Equal Priors – Train CM")
-plot_cm(axes[0,1], cm_te_eq,   "Equal Priors – Test CM")
-plot_cm(axes[1,0], cm_tr_uneq, "Unequal Priors – Train CM")
-plot_cm(axes[1,1], cm_te_uneq, "Unequal Priors – Test CM")
-plt.suptitle("Q3 – Confusion Matrices", fontsize=12, fontweight="bold")
+plot_cm(axes[0,0], cm_tr_eq,   "Equal Priors : Train CM")
+plot_cm(axes[0,1], cm_te_eq,   "Equal Priors : Test CM")
+plot_cm(axes[1,0], cm_tr_uneq, "Unequal Priors : Train CM")
+plot_cm(axes[1,1], cm_te_uneq, "Unequal Priors : Test CM")
+plt.suptitle("Q3 : Confusion Matrices", fontsize=12, fontweight="bold")
 plt.tight_layout()
 plt.savefig("plots/q3_confusion_matrices.png", dpi=150)
 plt.close()
