@@ -1,19 +1,3 @@
-// ============================================================================
-//  Smart Washing Machine FSM Simulator
-//  CAA Lab : Microcontroller Design (FSM + Interrupts + Cycle Simulation)
-//
-//  Usage : ./washing_machine
-//  Output: cpu_trace.txt  (cycle-by-cycle trace)
-//
-//  Architecture
-//  Registers   : state_reg (current FSM state), cycle_ctr (uint8_t, ALU-managed),
-//                mode_reg  (wash duration target)
-//  ALU usage   : alu_add  : increment cycle counter each active cycle
-//                alu_cmp  : compare counter to state duration target
-//  Control unit: FSM transition logic in switch/case
-//  Interrupt   : checked each cycle before state execution (priority: OVL > DOOR)
-// ============================================================================
-
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -21,8 +5,7 @@
 #include <string>
 #include "alu.hpp"
 
-// FSM State
-
+// fsm states
 enum State : uint8_t {
     IDLE        = 0,
     LOCK        = 1,
@@ -34,16 +17,14 @@ enum State : uint8_t {
     ERROR_STATE = 7
 };
 
-// Wash Modes (value = required WASH cycles)
-
+// wash modes (value = required WASH cycles)
 enum Mode : uint8_t {
     QUICK  = 2,
     NORMAL = 4,
     HEAVY  = 6
 };
 
-// I/O Bundle
-
+// i/o
 struct Inputs {
     bool start       = false;
     bool door_closed = true;
@@ -67,7 +48,6 @@ struct CycleEvent {
 };
 
 // Pure combinational: state → outputs (Moore FSM)
-
 static Outputs get_outputs(State s)
 {
     Outputs o{};
