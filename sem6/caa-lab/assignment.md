@@ -1,238 +1,244 @@
-# Lab Test: Smart Washing Machine
+# Lab Test II: Smart Microwave Oven
 
-**Microcontroller Design (FSM + Interrupts + Cycle-Based Simulation)**
-Department of Computer Science and Engineering
+**Microcontroller Design**
+*(FSM + Interrupts + Timing + User Interaction)*
+Department of Computer Science and Engineering 
 
 ---
 
 ## 1. Objective
 
-This test evaluates your ability to:
+The objective of this assignment is to design and simulate a microcontroller-based control system for a **Smart Microwave Oven**.
 
-* Design a microcontroller architecture
-* Model control logic using FSM
-* Handle interrupts
-* Perform cycle-by-cycle simulation
+Students will learn:
+
+* FSM-based control design
+* Interrupt handling
+* Timer-based execution
+* Embedded system simulation
 
 ---
 
 ## 2. System Description
 
+You are required to design a controller for a microwave oven.
+
 ### Inputs
 
-* START
-* DOOR CLOSED (1 = closed, 0 = open)
-* WATER LEVEL OK (1 = sufficient water)
-* OVERLOAD (1 = overload condition)
+* `START`
+* `STOP`
+* `DOOR CLOSED` (1 = closed, 0 = open)
+* `FOOD PRESENT` (1 = present)
+* `TEMP SENSOR` (1 = overheating)
 
 ### Outputs
 
-* MOTOR (ON/OFF)
-* VALVE (ON/OFF)
-* DOOR LOCK (ON/OFF)
-* BUZZER (ON/OFF)
+* `HEATER` (ON/OFF)
+* `TURNTABLE` (ON/OFF)
+* `LIGHT` (ON/OFF)
+* `BUZZER` (ON/OFF)
+* `DISPLAY` (Mode + Time)
 
 ---
 
 ## 3. Operating Modes
 
-| Mode   | Wash Duration (cycles) |
-| ------ | ---------------------- |
-| QUICK  | 2                      |
-| NORMAL | 4                      |
-| HEAVY  | 6                      |
+| Mode    | Description  | Time (cycles) |
+| ------- | ------------ | ------------- |
+| DEFROST | Low power    | 3             |
+| HEAT    | Medium power | 5             |
+| GRILL   | High power   | 7             |
 
 ---
 
-## 4. FSM States and Meaning
+## 4. FSM States
 
-| State  | Description                         |
-| ------ | ----------------------------------- |
-| IDLE   | Waiting for START                   |
-| LOCK   | Lock door (2 cycles)                |
-| FILL   | Fill water until WATER LEVEL OK = 1 |
-| WASH   | Motor ON for required cycles        |
-| DRAIN  | Stop water/motor                    |
-| UNLOCK | Unlock door (2 cycles)              |
-| BUZZ   | Indicate completion                 |
-| ERROR  | Safety stop state                   |
+```
+IDLE → CHECK → RUN → PAUSE → COMPLETE → BUZZ → IDLE
+                   ↓
+                 ERROR
+```
 
 ---
 
-## 5. State Output Behavior
+## 5. State Behavior
 
-| State  | MOTOR | VALVE | DOOR LOCK | BUZZER |
-| ------ | ----- | ----- | --------- | ------ |
-| LOCK   | OFF   | OFF   | ON        | OFF    |
-| FILL   | OFF   | ON    | ON        | OFF    |
-| WASH   | ON    | OFF   | ON        | OFF    |
-| DRAIN  | OFF   | OFF   | ON        | OFF    |
-| UNLOCK | OFF   | OFF   | OFF       | OFF    |
-| BUZZ   | OFF   | OFF   | OFF       | ON     |
-| ERROR  | OFF   | OFF   | ON        | ON     |
+| State    | HEATER | TURNTABLE | LIGHT | BUZZER |
+| -------- | ------ | --------- | ----- | ------ |
+| IDLE     | OFF    | OFF       | OFF   | OFF    |
+| CHECK    | OFF    | OFF       | ON    | OFF    |
+| RUN      | ON     | ON        | ON    | OFF    |
+| PAUSE    | OFF    | OFF       | ON    | OFF    |
+| COMPLETE | OFF    | OFF       | ON    | OFF    |
+| BUZZ     | OFF    | OFF       | OFF   | ON     |
+| ERROR    | OFF    | OFF       | ON    | ON     |
 
 ---
 
-## 6. Timing Rules
+## 6. Functional Rules
 
-* Each state takes **1 cycle** unless specified
-* **LOCK and UNLOCK take 2 cycles**
-* **WASH duration depends on mode**
-* State changes occur at the **end of each cycle**
+### Start Condition
+
+System starts only if:
+
+* `START = 1`
+* `DOOR CLOSED = 1`
+* `FOOD PRESENT = 1`
+
+### Pause Condition
+
+* `STOP` pressed → `PAUSE`
+* Resume using `START`
+
+### Completion
+
+* When timer reaches zero → `COMPLETE → BUZZ`
 
 ---
 
 ## 7. Interrupt Handling
 
-### Priority Order
+### Interrupt Priority
 
 ```
-OVERLOAD > DOOR_OPEN > NORMAL TRANSITION
+TEMP_SENSOR > DOOR_OPEN > STOP
 ```
 
-### Behavior
+### Interrupt Behavior
 
-* OVERLOAD = 1 → go to **ERROR immediately**
-* DOOR CLOSED = 0 → go to **ERROR immediately**
-* Interrupt overrides all states
+* `TEMP SENSOR = 1` → `ERROR` state immediately
+* `DOOR CLOSED = 0` → `PAUSE` immediately
 
 ---
 
-## 8. Input Behavior
+## 8. Timing Rules
 
-Inputs may change during execution.
-
-Example:
-
-* Cycle 3: WATER_LEVEL_OK becomes 1
-* Cycle 5: OVERLOAD becomes 1
-
-You must read inputs **at every cycle**
+* Each state = **1 cycle**
+* RUN duration depends on selected mode
+* Timer decreases every cycle in RUN
 
 ---
 
-## 9. Execution Model (Step-by-Step)
+## 9. Display Requirement
+
+At each cycle:
+
+```
+DISPLAY = MODE - Remaining Time
+```
+
+**Example:**
+
+```
+HEAT - 3
+```
+
+---
+
+## 10. Execution Model
 
 At each cycle:
 
 1. Read inputs
 2. Check interrupts
-3. Execute current state
+3. Execute state
 4. Update outputs
-5. Transition to next state
+5. Update timer
+6. Print log
 
 ---
 
-## 10. Output Format (Mandatory)
+## 11. Output Format (Mandatory)
 
 ```
-Cycle | State | Inputs | Outputs
+Cycle | State | Inputs | Outputs | Display
 ```
 
-Example:
+**Example:**
 
 ```
-Cycle 3 | FILL | W=0 | VALVE=ON
-```
-
----
-
-## 11. Worked Example
-
-**MODE = QUICK**
-
-**Cycle 1 Inputs:**
-START=1, DOOR=1, WATER=1
-
-### Execution
-
-```
-Cycle 1 | LOCK  | DOOR_LOCK=ON
-Cycle 2 | LOCK  | DOOR_LOCK=ON
-Cycle 3 | FILL  | VALVE=ON
-Cycle 4 | WASH  | MOTOR=ON
-Cycle 5 | WASH  | MOTOR=ON
-Cycle 6 | DRAIN | MOTOR=OFF
+Cycle 3 | RUN | DOOR=1 | HEATER=ON | HEAT-3
 ```
 
 ---
 
 ## 12. Sample Test Cases
 
-### Test Case 1 (Normal)
+### Test Case 1: Normal Operation
 
-**MODE = NORMAL**
+* MODE = HEAT
+* Cycle 1: `START=1, DOOR=1, FOOD=1`
 
-Cycle 1: START=1, DOOR=1, WATER=1
-
-**Expected:**
+**Expected Output (Key Steps):**
 
 ```
-Cycle 4–7 | WASH | MOTOR=ON
-Cycle 8   | DRAIN
+Cycle 2 | RUN | HEATER=ON | HEAT-5
+Cycle 3 | RUN | HEAT-4
+Cycle 7 | COMPLETE
+Cycle 8 | BUZZ
 ```
 
 ---
 
-### Test Case 2 (Water Delay)
+### Test Case 2: Door Open During Run
 
-* Cycle 1: WATER=0
-* Cycle 3: WATER=1
+* Cycle 4: `DOOR=0`
 
-**Expected:**
+**Expected Output:**
 
-* FILL continues until WATER=1
-* Then transition to WASH
-
----
-
-### Test Case 3 (Door Interrupt)
-
-* Cycle 4: DOOR=0
-
-**Expected:**
-
-* Immediate transition to ERROR
-* MOTOR=OFF, BUZZER=ON
+```
+Cycle 4 | PAUSE | HEATER=OFF
+```
 
 ---
 
-### Test Case 4 (Overload)
+### Test Case 3: Resume
 
-* Cycle 6: OVERLOAD=1
+* Cycle 5: `START=1`
 
-**Expected:**
+**Expected Output:**
 
-* Immediate ERROR state
+```
+Resume from remaining time
+```
+
+---
+
+### Test Case 4: Overheat
+
+* Cycle 3: `TEMP_SENSOR=1`
+
+**Expected Output:**
+
+```
+Cycle 3 | ERROR | BUZZER=ON
+```
+
+---
+
+### Test Case 5: Invalid Start
+
+* `START=1, DOOR=0`
+
+**Expected Output:**
+
+```
+System remains in IDLE
+```
 
 ---
 
 ## 13. Tasks
 
-* Draw architecture diagram
+* Draw microcontroller block diagram
 * Draw FSM diagram
-* Write C/C++ simulator
-* Print cycle-by-cycle output
+* Write C/C++ simulation
+* Show outputs for all test cases
 
 ---
 
-## 14. Evaluation
+## 14. Important Notes
 
-| Component       | Marks   |
-| --------------- | ------- |
-| Architecture    | 20      |
-| FSM             | 20      |
-| Interrupt Logic | 20      |
-| Simulation Code | 20      |
-| Output          | 10      |
-| Viva            | 10      |
-| **Total**       | **100** |
-
----
-
-## 15. Important Assumptions
-
-* All signals are **synchronous per cycle**
-* Only one state is active at a time
-* Outputs depend only on current state
-
+* Outputs depend only on **current state**
+* Inputs may change during execution
+* Exact cycle numbers may vary slightly, but logic must match
