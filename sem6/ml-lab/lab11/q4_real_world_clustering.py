@@ -11,14 +11,10 @@ os.makedirs("plots", exist_ok=True)
 
 DATA_PATH = "data.csv"
 
-# ---------------------------------------------------------------------------
-# RFM feature engineering from Online Retail transactional data
-# ---------------------------------------------------------------------------
 def build_rfm(path):
     df = pd.read_csv(path, encoding="latin-1")
     print(f"Loaded: {len(df):,} rows, {df['CustomerID'].nunique()} unique customers")
 
-    # Drop rows without CustomerID and cancelled orders (InvoiceNo starts with 'C')
     df = df[df["CustomerID"].notna()]
     df = df[~df["InvoiceNo"].astype(str).str.startswith("C")]
     df = df[df["Quantity"] > 0]
@@ -40,7 +36,6 @@ def build_rfm(path):
 
 def preprocess(rfm):
     X_raw = rfm[["Recency", "Frequency", "Monetary"]].copy()
-    # Log-transform to reduce skew on Frequency and Monetary
     X_raw["Frequency"] = np.log1p(X_raw["Frequency"])
     X_raw["Monetary"]  = np.log1p(X_raw["Monetary"])
     scaler = StandardScaler()
@@ -69,12 +64,10 @@ if __name__ == "__main__":
     rfm = build_rfm(DATA_PATH)
     X   = preprocess(rfm)
 
-    # 2-D PCA projection for visualization
     pca  = PCA(n_components=2, random_state=42)
     X2d  = pca.fit_transform(X)
     pct  = pca.explained_variance_ratio_ * 100
 
-    # --- K-Means: choose k via elbow + silhouette ---
     k_range = range(2, 9)
     wcss_vals, sil_vals = [], []
     for k in k_range:
@@ -83,7 +76,6 @@ if __name__ == "__main__":
         wcss_vals.append(km.inertia_)
         sil_vals.append(silhouette_score(X, lbl))
 
-    # Plot elbow + silhouette together
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
     ax1.plot(list(k_range), wcss_vals, marker="o", linewidth=2)
     ax1.set_title("Elbow Method (K-Means)")
@@ -114,8 +106,6 @@ if __name__ == "__main__":
                   f"K-Means (k={best_k}) — Silhouette={km_sil:.3f}",
                   "plots/q4_kmeans_clusters.png", pct_var=pct)
 
-    # --- DBSCAN ---
-    # RFM space is 3-D standardized; eps~1.5 captures moderate density neighbourhoods
     db        = DBSCAN(eps=1.5, min_samples=10)
     db_labels = db.fit_predict(X)
     n_db_clusters = len(set(db_labels) - {-1})
@@ -133,7 +123,6 @@ if __name__ == "__main__":
                   f"DBSCAN (eps=1.5, min_s=10) — Silhouette={sil_str}\nclusters={n_db_clusters}, noise={n_noise}",
                   "plots/q4_dbscan_clusters.png", pct_var=pct)
 
-    # --- Side-by-side comparison ---
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     palette = plt.cm.tab10.colors
     for ax, labels, title in [
@@ -154,7 +143,6 @@ if __name__ == "__main__":
     plt.savefig("plots/q4_comparison.png", dpi=150)
     plt.close()
 
-    # --- Cluster profile summary ---
     rfm["Cluster"] = km_labels
     print("\nK-Means cluster profiles (mean RFM):")
     print(rfm.groupby("Cluster")[["Recency", "Frequency", "Monetary"]].mean().round(1).to_string())

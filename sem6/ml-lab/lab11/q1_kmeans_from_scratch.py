@@ -6,23 +6,19 @@ import os
 os.makedirs("plots", exist_ok=True)
 
 def kmeans(X, k, max_iters=100, tol=1e-4):
-    # Randomly initialize centroids from data points
     rng = np.random.default_rng(42)
     idx = rng.choice(len(X), k, replace=False)
     centroids = X[idx].copy()
 
     for _ in range(max_iters):
-        # Assign each point to nearest centroid
         dists = np.linalg.norm(X[:, None] - centroids[None, :], axis=2)  # (n, k)
         labels = np.argmin(dists, axis=1)
 
-        # Recompute centroids
         new_centroids = np.array([
             X[labels == j].mean(axis=0) if np.any(labels == j) else centroids[j]
             for j in range(k)
         ])
 
-        # Check convergence
         if np.linalg.norm(new_centroids - centroids) < tol:
             break
         centroids = new_centroids
@@ -48,7 +44,6 @@ if __name__ == "__main__":
         score = wcss(X, labels, centroids)
         wcss_scores.append(score)
 
-        # Plot cluster visualization
         fig, ax = plt.subplots(figsize=(6, 5))
         for j in range(k):
             pts = X[labels == j]
@@ -62,7 +57,6 @@ if __name__ == "__main__":
         plt.savefig(f"plots/q1_k{k}_clusters.png", dpi=150)
         plt.close()
 
-    # Elbow method plot
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.plot(K_values, wcss_scores, marker="o", linewidth=2)
     ax.set_title("Elbow Method — K vs WCSS")

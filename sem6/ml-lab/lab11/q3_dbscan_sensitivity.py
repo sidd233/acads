@@ -38,18 +38,14 @@ if __name__ == "__main__":
             n_clusters = len(unique_labels)
             n_noise = noise_mask.sum()
 
-            # Draw clusters
             for lbl in sorted(unique_labels):
                 mask = labels == lbl
                 color = palette[lbl % len(palette)]
-                # Core points — filled
                 ax.scatter(X[mask & core_mask, 0], X[mask & core_mask, 1],
                            color=color, s=25, alpha=0.9)
-                # Border points — hollow marker
                 ax.scatter(X[mask & border_mask, 0], X[mask & border_mask, 1],
                            facecolors="none", edgecolors=color, s=25, linewidths=0.8)
 
-            # Noise points — gray X
             ax.scatter(X[noise_mask, 0], X[noise_mask, 1],
                        color="gray", marker="x", s=25, linewidths=0.8, label="Noise")
 
@@ -57,11 +53,9 @@ if __name__ == "__main__":
             ax.set_xticks([])
             ax.set_yticks([])
 
-            # Log point counts
             print(f"eps={eps}, min_samples={ms}: clusters={n_clusters}, "
                   f"core={core_mask.sum()}, border={border_mask.sum()}, noise={n_noise}")
 
-    # Shared legend
     from matplotlib.lines import Line2D
     legend_elements = [
         Line2D([0], [0], marker="o", color="w", markerfacecolor="steelblue", markersize=8, label="Core"),

@@ -1,0 +1,38 @@
+<document>
+
+<ARTICLE>
+<article>full</article>
+<author>Leslie</author>
+<title>The Gnats and Gnus Document Preparation System</title>
+<journal>Animal</journal>
+<year>1986</year>
+<page>73</page>
+</ARTICLE>
+
+<BOOK>
+<book>full</book>
+<author>Donald</author>
+<title>Seminumerical Algorithms</title>
+<volume>2</volume>
+<publisher>Addison Wesley</publisher>
+</BOOK>
+
+<INPROCEEDINGS>
+<inproceedings>minimal</inproceedings>
+<author>Alfred</author>
+<title>Lower Bounds on wishful research results</title>
+<editor>Wizard</editor>
+<series>ACM</series>
+<year>1990</year>
+<publisher>Academic Press</publisher>
+</INPROCEEDINGS>
+
+<BOOK>
+<book>full</book>
+<author>Donald</author>
+<title>Seminumerical Algorithms</title>
+<volume>2</volume>
+<publisher>Addison Wesley</publisher>
+</BOOK>
+
+</document>
