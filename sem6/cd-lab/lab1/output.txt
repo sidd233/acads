@@ -1,1 +1,0 @@
-Regular Expression: ab(ab|e)*aa|aa

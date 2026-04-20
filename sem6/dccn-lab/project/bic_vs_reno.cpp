@@ -2,8 +2,8 @@
 using namespace std;
 
 int main() {
-    int steps = 1000;
-    double loss_prob = 0.02;
+    int steps = 1200;
+    double loss_prob = 0.05;
 
     double cwnd_reno = 1;
     double cwnd_bic = 1;
@@ -15,10 +15,10 @@ int main() {
 
     for (int t = 1; t <= steps; t++) {
 
-        // random loss 
+        // random loss
         bool loss = ((double)rand() / RAND_MAX) < loss_prob;
 
-        // reno 
+        // reno
         if (loss) {
             cwnd_reno = max(1.0, cwnd_reno / 2.0);
         } else {
