@@ -1,0 +1,400 @@
+\documentclass[12pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+    language=Python
+}
+
+\lstset{style=pythonstyle}
+
+\title{Deep Learning Laboratory\\Assignment 1: Geometric Interpretation and Learning Behaviour of a Single Layer Perceptron}
+\author{Siddharth Narayan Mishra\\Roll No: 123CS0189}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\part*{Experiment I: Geometric Interpretation of a Single Layer Perceptron}
+
+\section{Objective}
+
+\begin{itemize}
+    \item Construct the truth table of a three-input AND gate.
+    \item Load the dataset into a Python program.
+    \item Visualize the dataset using a three-dimensional scatter plot.
+    \item Implement interactive sliders to modify the perceptron weights and bias.
+    \item Observe the effect of changing the decision hyperplane.
+    \item Determine a set of perceptron parameters that correctly classifies the dataset.
+\end{itemize}
+
+\section{Truth Table of Three-Input AND Gate}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cccc}
+\toprule
+A & B & C & Output\\
+\midrule
+0 & 0 & 0 & 0\\
+0 & 0 & 1 & 0\\
+0 & 1 & 0 & 0\\
+0 & 1 & 1 & 0\\
+1 & 0 & 0 & 0\\
+1 & 0 & 1 & 0\\
+1 & 1 & 0 & 0\\
+1 & 1 & 1 & 1\\
+\bottomrule
+\end{tabular}
+\caption{Truth table of a three-input AND gate}
+\end{table}
+
+\section{Loading the Dataset}
+
+The dataset was stored in a CSV file named \texttt{and\_truth\_table.csv} and loaded using the Pandas library.
+
+\begin{lstlisting}[caption=Loading the Dataset]
+import pandas as pd
+
+df = pd.read_csv("and_truth_table.csv")
+
+print(df)
+\end{lstlisting}
+
+\section{Three-Dimensional Scatter Plot}
+
+The three input features ($A$, $B$, and $C$) were used as the three coordinate axes, while the output value was represented using color.
+
+\begin{lstlisting}[caption=Creating the 3D Scatter Plot]
+fig = plt.figure(figsize=(8,6))
+ax = fig.add_subplot(111, projection='3d')
+
+scatter = ax.scatter(
+    df["A"],
+    df["B"],
+    df["C"],
+    c=df["Output"],
+    cmap="viridis",
+    s=100
+)
+
+ax.set_xlabel("Input A")
+ax.set_ylabel("Input B")
+ax.set_zlabel("Input C")
+plt.colorbar(scatter, label="Output")
+plt.show()
+\end{lstlisting}
+
+\section{Interactive Decision Hyperplane}
+
+Interactive sliders were created using the Matplotlib \texttt{Slider} widget to modify the following perceptron parameters:
+
+\begin{itemize}
+    \item Weight $w_1$
+    \item Weight $w_2$
+    \item Weight $w_3$
+    \item Bias $b$
+\end{itemize}
+
+Whenever a slider was moved, the decision hyperplane was recomputed and redrawn in real time.
+
+The decision hyperplane is represented by
+
+\[
+w_1A+w_2B+w_3C+b=0
+\]
+
+The corresponding Python code used sliders to update the hyperplane dynamically.
+
+\begin{lstlisting}[caption=Interactive Sliders]
+slider_w1 = Slider(ax_w1, "Weight 1", -5, 5, valinit=w1)
+slider_w2 = Slider(ax_w2, "Weight 2", -5, 5, valinit=w2)
+slider_w3 = Slider(ax_w3, "Weight 3", -5, 5, valinit=w3)
+slider_b  = Slider(ax_b,  "Bias", -5, 5, valinit=b)
+
+slider_w1.on_changed(update)
+slider_w2.on_changed(update)
+slider_w3.on_changed(update)
+slider_b.on_changed(update)
+\end{lstlisting}
+
+\section{Effect of Changing Weights and Bias}
+
+The perceptron computes its output according to
+
+\[
+y=
+\begin{cases}
+1,&\text{if }w_1A+w_2B+w_3C+b\ge0\\
+0,&\text{otherwise}
+\end{cases}
+\]
+
+The following observations were made:
+
+\begin{itemize}
+    \item Changing the weights ($w_1,w_2,w_3$) changes the orientation (tilt) of the decision hyperplane.
+    \item Increasing the value of a particular weight increases the influence of the corresponding input feature.
+    \item Scaling all three weights by the same factor preserves the orientation of the hyperplane.
+    \item Changing the bias shifts the hyperplane parallel to itself without changing its orientation.
+    \item A more negative bias moves the hyperplane away from the origin, making classification into class 1 more restrictive.
+    \item A more positive bias moves the hyperplane closer to the origin, allowing more points to be classified as class 1.
+\end{itemize}
+
+\section{Perceptron Parameters that Correctly Separate the Dataset}
+
+One set of perceptron parameters that correctly classifies the three-input AND gate is
+
+\[
+w_1=1,\qquad
+w_2=1,\qquad
+w_3=1,\qquad
+b=-2.5
+\]
+
+The decision boundary becomes
+
+\[
+A+B+C-2.5=0
+\]
+
+The net input for every input combination is shown below.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccccc}
+\toprule
+A & B & C & Net Input & Output\\
+\midrule
+0 & 0 & 0 & -2.5 & 0\\
+0 & 0 & 1 & -1.5 & 0\\
+0 & 1 & 0 & -1.5 & 0\\
+0 & 1 & 1 & -0.5 & 0\\
+1 & 0 & 0 & -1.5 & 0\\
+1 & 0 & 1 & -0.5 & 0\\
+1 & 1 & 0 & -0.5 & 0\\
+1 & 1 & 1 & 0.5 & 1\\
+\bottomrule
+\end{tabular}
+\caption{Classification using the chosen perceptron parameters}
+\end{table}
+
+Only the point $(1,1,1)$ lies on the positive side of the hyperplane, while every other point lies on the negative side. Therefore, the dataset is correctly separated.
+
+\section{Conclusion (Experiment I)}
+
+The three-input AND gate dataset was successfully represented as a CSV file and loaded into Python. A three-dimensional scatter plot was generated using Matplotlib. Interactive sliders were implemented to modify the perceptron weights and bias, allowing the decision hyperplane to update in real time. It was observed that the weight vector controls the orientation of the hyperplane, whereas the bias controls its position. The parameter set
+
+\[
+(w_1,w_2,w_3,b)=(1,1,1,-2.5)
+\]
+
+correctly separates the dataset, classifying only the input $(1,1,1)$ as class 1.
+
+\clearpage
+\part*{Experiment II: Learning Behaviour of a Single Layer Perceptron}
+
+\section{Objective}
+
+\begin{itemize}
+    \item Generate a 2D linearly separable dataset of 40 samples (20 per class).
+    \item Visualize the dataset using a 2D scatter plot.
+    \item Initialize a perceptron with random weights and bias and train it using the standard Perceptron Learning Algorithm (PLA).
+    \item Animate the learning process, updating the decision boundary after every weight update.
+    \item Track weight vector, bias, iteration number, misclassification count, the sample responsible for each update, and the angle between successive weight vectors.
+    \item Plot misclassified samples against iteration and discuss convergence.
+    \item Study the effect of learning rate, weight/bias initialization, and feature scaling on convergence.
+\end{itemize}
+
+\section{Dataset Generation}
+
+A synthetic 2D dataset of 40 points (20 per class) was generated using two well-separated Gaussian blobs, guaranteeing linear separability while keeping the classes close enough that the perceptron requires several iterations to converge.
+
+\begin{lstlisting}[caption=Generating the 2D Linearly Separable Dataset]
+def generate_dataset(n_per_class=20, mean0=(-1.2, -1.2), mean1=(1.2, 1.2),
+                      spread=1.0, seed=None):
+    rng = np.random.default_rng(seed)
+    cov = [[spread, 0], [0, spread]]
+    X0 = rng.multivariate_normal(mean0, cov, n_per_class)
+    X1 = rng.multivariate_normal(mean1, cov, n_per_class)
+    X = np.vstack([X0, X1])
+    y = np.array([0] * n_per_class + [1] * n_per_class)
+    perm = rng.permutation(len(y))
+    return X[perm], y[perm]
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{dataset_scatter.png}
+\caption{2D scatter plot of the generated linearly separable dataset (40 samples, 20 per class).}
+\end{figure}
+
+\section{Perceptron Learning Algorithm}
+
+The perceptron was initialized with weights and bias, and trained using the standard stochastic PLA update. At each iteration, a currently misclassified sample $x_i$ with signed label $y_i \in \{-1,+1\}$ is selected and the parameters are updated as
+
+\[
+\mathbf{w} \leftarrow \mathbf{w} + \eta\, y_i\, \mathbf{x}_i,
+\qquad
+b \leftarrow b + \eta\, y_i
+\]
+
+where $\eta$ is the learning rate. Training continues until no sample is misclassified (convergence) or a maximum number of iterations is reached.
+
+\begin{lstlisting}[caption=Perceptron Training Loop]
+def train_perceptron(X, y, lr=1.0, w_init=None, b_init=None,
+                      max_iter=500, seed=None):
+    rng = np.random.default_rng(seed)
+    n_samples, n_features = X.shape
+    w = (rng.uniform(-1, 1, n_features) if w_init is None
+         else np.array(w_init, dtype=float))
+    b = rng.uniform(-1, 1) if b_init is None else float(b_init)
+    y_signed = np.where(y == 1, 1, -1)
+
+    history = []
+    prev_w = w.copy()
+
+    for it in range(max_iter):
+        preds = X @ w + b
+        misclassified = np.where(y_signed * preds <= 0)[0]
+        n_mis = len(misclassified)
+
+        if n_mis == 0:
+            history.append(dict(iter=it, w=w.copy(), b=b,
+                                 n_mis=0, updated_idx=None, angle=None))
+            break
+
+        idx = rng.choice(misclassified)
+        cos_angle = np.dot(prev_w, w) / (
+            np.linalg.norm(prev_w) * np.linalg.norm(w) + 1e-12)
+        angle = np.degrees(np.arccos(np.clip(cos_angle, -1, 1))) if it > 0 else 0.0
+
+        history.append(dict(iter=it, w=w.copy(), b=b, n_mis=n_mis,
+                             updated_idx=idx, angle=angle))
+
+        prev_w = w.copy()
+        w = w + lr * y_signed[idx] * X[idx]
+        b = b + lr * y_signed[idx]
+
+    return history
+\end{lstlisting}
+
+\section{Animated Learning Process}
+
+The decision boundary $w_1 x_1 + w_2 x_2 + b = 0$ was redrawn after every weight update. At each frame the animation displays: the current weight vector and bias, the iteration number, the number of misclassified samples, the specific training sample responsible for the update (highlighted in green), the misclassified samples at that step (circled in orange), and the angle between the current and previous weight vectors.
+
+\begin{lstlisting}[caption=Animating the Decision Boundary]
+def draw(frame_idx):
+    ax.clear()
+    state = history[frame_idx]
+    w, b, n_mis = state["w"], state["b"], state["n_mis"]
+
+    preds = X @ w + b
+    correct = y_signed * preds > 0
+
+    ax.scatter(X[correct & (y == 0)][:, 0], X[correct & (y == 0)][:, 1],
+               c="tab:red", marker="o", edgecolor="k")
+    ax.scatter(X[correct & (y == 1)][:, 0], X[correct & (y == 1)][:, 1],
+               c="tab:blue", marker="^", edgecolor="k")
+    ax.scatter(X[~correct][:, 0], X[~correct][:, 1],
+               facecolor="none", edgecolor="orange", s=160, linewidth=2)
+
+    if state["updated_idx"] is not None:
+        xi = X[state["updated_idx"]]
+        ax.scatter(*xi, s=260, facecolor="none",
+                   edgecolor="lime", linewidth=2.5)
+
+    bx, by = boundary_xy(w, b, xlim)
+    ax.plot(bx, by, "k--", lw=2)
+
+anim = FuncAnimation(fig, draw, frames=len(history), interval=600)
+anim.save("perceptron_learning.gif", writer=PillowWriter(fps=2))
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{animation_snapshot.png}
+\caption{A mid-training frame from the animation, showing the current decision boundary, misclassified points (orange), the sample used for the update (green), and the live parameter panel. The full animated sequence is provided as \texttt{perceptron\_learning.gif}.}
+\end{figure}
+
+\section{Convergence Behaviour}
+
+Starting from weights and bias deliberately set far from a good separator ($\mathbf{w}=[-2.0,\ 3.0]$, $b=4.0$, $\eta=1.0$), the perceptron converged in 9 iterations.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{convergence_baseline.png}
+\caption{Number of misclassified samples versus training iteration for the baseline run.}
+\end{figure}
+
+The curve is not monotonically decreasing: a single-sample update that corrects the point it was trained on can simultaneously move the boundary across other, previously correctly classified points, temporarily increasing the misclassification count. This is expected, since the perceptron rule greedily fixes one point at a time without minimizing a global error function. Because the two classes are linearly separable, the Perceptron Convergence Theorem guarantees termination in a finite number of steps, bounded above by $(R/\gamma)^2$, where $R$ is the maximum sample norm and $\gamma$ is the margin of the optimal separating hyperplane.
+
+\section{Effect of Hyperparameters}
+
+The training was repeated while varying the learning rate, weight initialization, bias initialization, and feature scaling, in order to compare convergence behaviour.
+
+\begin{lstlisting}[caption=Hyperparameter Sweep]
+for lr in [0.01, 0.1, 1.0, 5.0]:
+    h = train_perceptron(X, y, lr=lr, w_init=[0.1, 0.1], b_init=0.0, seed=1)
+
+for w0 in [[0.01, 0.01], [1.0, 1.0], [-2.0, 3.0]]:
+    h = train_perceptron(X, y, lr=1.0, w_init=w0, b_init=0.0, seed=1)
+
+for b0 in [0.0, 5.0, -5.0]:
+    h = train_perceptron(X, y, lr=1.0, w_init=[0.1, 0.1], b_init=b0, seed=1)
+
+X_scaled = (X - X.mean(axis=0)) / X.std(axis=0)
+h_raw    = train_perceptron(X, y, lr=1.0, w_init=[0.1, 0.1], b_init=0.0, seed=1)
+h_scaled = train_perceptron(X_scaled, y, lr=1.0, w_init=[0.1, 0.1], b_init=0.0, seed=1)
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{sweep_comparison.png}
+\caption{Misclassified samples versus iteration under varying learning rate, weight initialization, bias initialization, and feature scaling.}
+\end{figure}
+
+\textbf{Learning rate.} On linearly separable data, the sign of the update direction does not depend on the magnitude of $\eta$, only the step size does. Consequently the number of iterations to convergence is largely insensitive to $\eta$; the small differences observed here arise from $\eta$ interacting with the random tie-breaking order among misclassified points. A very large $\eta$ can, however, cause large, unstable swings in the boundary between updates, which would matter more on noisy or overlapping data.
+
+\textbf{Weight initialization.} Initializing close to the correct orientation converges faster, since fewer corrective updates are needed. Initializing far away, or with badly mismatched signs, requires several extra updates to rotate the weight vector into the correct half-space before fine convergence near the margin.
+
+\textbf{Bias initialization.} A poorly chosen bias shifts the boundary away from the region between the two classes. If the initial bias places every sample on the same side of the boundary, additional iterations are required just to bring the boundary back between the two classes before it can fine-tune the separation.
+
+\textbf{Feature scaling.} Standardizing features changes the relative magnitude of each coordinate used in the update $\mathbf{w} \leftarrow \mathbf{w} + \eta y \mathbf{x}$. On this dataset, where both features already share a similar scale, scaling had a modest effect; on datasets with very different feature scales, an unscaled feature could dominate the update direction, slowing convergence along the other axis.
+
+\section{General Takeaway}
+
+For linearly separable data, the learning rate affects neither whether nor (in principle) how quickly the perceptron converges; scaling the update size only rescales the path through weight-space. What actually determines the number of iterations is how far the initial $(\mathbf{w}, b)$ is from a valid separator, and the relative geometry/scale of the input features, since these determine how much each single-sample update moves the boundary relative to the margin.
+
+\section{Conclusion (Experiment II)}
+
+A 2D linearly separable dataset was generated and used to train a single-layer perceptron with the standard PLA update rule. The learning process was animated to visualize how the decision boundary evolves after each weight update, alongside live tracking of the weight vector, bias, misclassification count, and the angle between successive weight vectors. The perceptron converged within a finite number of iterations, consistent with the Perceptron Convergence Theorem. Varying the learning rate, weight/bias initialization, and feature scaling showed that convergence speed is governed primarily by the initial distance from a valid separating hyperplane and by feature geometry, rather than by the learning rate itself.
+
+\end{document}
