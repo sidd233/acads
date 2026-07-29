@@ -58,22 +58,22 @@
 \section{Truth Table of Three-Input AND Gate}
 
 \begin{table}[H]
-\centering
-\begin{tabular}{cccc}
-\toprule
-A & B & C & Output\\
-\midrule
-0 & 0 & 0 & 0\\
-0 & 0 & 1 & 0\\
-0 & 1 & 0 & 0\\
-0 & 1 & 1 & 0\\
-1 & 0 & 0 & 0\\
-1 & 0 & 1 & 0\\
-1 & 1 & 0 & 0\\
-1 & 1 & 1 & 1\\
-\bottomrule
-\end{tabular}
-\caption{Truth table of a three-input AND gate}
+    \centering
+    \begin{tabular}{cccc}
+        \toprule
+        A & B & C & Output \\
+        \midrule
+        0 & 0 & 0 & 0      \\
+        0 & 0 & 1 & 0      \\
+        0 & 1 & 0 & 0      \\
+        0 & 1 & 1 & 0      \\
+        1 & 0 & 0 & 0      \\
+        1 & 0 & 1 & 0      \\
+        1 & 1 & 0 & 0      \\
+        1 & 1 & 1 & 1      \\
+        \bottomrule
+    \end{tabular}
+    \caption{Truth table of a three-input AND gate}
 \end{table}
 
 \section{Loading the Dataset}
@@ -128,7 +128,7 @@ Whenever a slider was moved, the decision hyperplane was recomputed and redrawn 
 The decision hyperplane is represented by
 
 \[
-w_1A+w_2B+w_3C+b=0
+    w_1A+w_2B+w_3C+b=0
 \]
 
 The corresponding Python code used sliders to update the hyperplane dynamically.
@@ -150,11 +150,11 @@ slider_b.on_changed(update)
 The perceptron computes its output according to
 
 \[
-y=
-\begin{cases}
-1,&\text{if }w_1A+w_2B+w_3C+b\ge0\\
-0,&\text{otherwise}
-\end{cases}
+    y=
+    \begin{cases}
+        1, & \text{if }w_1A+w_2B+w_3C+b\ge0 \\
+        0, & \text{otherwise}
+    \end{cases}
 \]
 
 The following observations were made:
@@ -173,37 +173,37 @@ The following observations were made:
 One set of perceptron parameters that correctly classifies the three-input AND gate is
 
 \[
-w_1=1,\qquad
-w_2=1,\qquad
-w_3=1,\qquad
-b=-2.5
+    w_1=1,\qquad
+    w_2=1,\qquad
+    w_3=1,\qquad
+    b=-2.5
 \]
 
 The decision boundary becomes
 
 \[
-A+B+C-2.5=0
+    A+B+C-2.5=0
 \]
 
 The net input for every input combination is shown below.
 
 \begin{table}[H]
-\centering
-\begin{tabular}{ccccc}
-\toprule
-A & B & C & Net Input & Output\\
-\midrule
-0 & 0 & 0 & -2.5 & 0\\
-0 & 0 & 1 & -1.5 & 0\\
-0 & 1 & 0 & -1.5 & 0\\
-0 & 1 & 1 & -0.5 & 0\\
-1 & 0 & 0 & -1.5 & 0\\
-1 & 0 & 1 & -0.5 & 0\\
-1 & 1 & 0 & -0.5 & 0\\
-1 & 1 & 1 & 0.5 & 1\\
-\bottomrule
-\end{tabular}
-\caption{Classification using the chosen perceptron parameters}
+    \centering
+    \begin{tabular}{ccccc}
+        \toprule
+        A & B & C & Net Input & Output \\
+        \midrule
+        0 & 0 & 0 & -2.5      & 0      \\
+        0 & 0 & 1 & -1.5      & 0      \\
+        0 & 1 & 0 & -1.5      & 0      \\
+        0 & 1 & 1 & -0.5      & 0      \\
+        1 & 0 & 0 & -1.5      & 0      \\
+        1 & 0 & 1 & -0.5      & 0      \\
+        1 & 1 & 0 & -0.5      & 0      \\
+        1 & 1 & 1 & 0.5       & 1      \\
+        \bottomrule
+    \end{tabular}
+    \caption{Classification using the chosen perceptron parameters}
 \end{table}
 
 Only the point $(1,1,1)$ lies on the positive side of the hyperplane, while every other point lies on the negative side. Therefore, the dataset is correctly separated.
@@ -213,7 +213,7 @@ Only the point $(1,1,1)$ lies on the positive side of the hyperplane, while ever
 The three-input AND gate dataset was successfully represented as a CSV file and loaded into Python. A three-dimensional scatter plot was generated using Matplotlib. Interactive sliders were implemented to modify the perceptron weights and bias, allowing the decision hyperplane to update in real time. It was observed that the weight vector controls the orientation of the hyperplane, whereas the bias controls its position. The parameter set
 
 \[
-(w_1,w_2,w_3,b)=(1,1,1,-2.5)
+    (w_1,w_2,w_3,b)=(1,1,1,-2.5)
 \]
 
 correctly separates the dataset, classifying only the input $(1,1,1)$ as class 1.
@@ -251,9 +251,9 @@ def generate_dataset(n_per_class=20, mean0=(-1.2, -1.2), mean1=(1.2, 1.2),
 \end{lstlisting}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.65\textwidth]{dataset_scatter.png}
-\caption{2D scatter plot of the generated linearly separable dataset (40 samples, 20 per class).}
+    \centering
+    \includegraphics[width=0.65\textwidth]{./outputs/dataset_scatter.png}
+    \caption{2D scatter plot of the generated linearly separable dataset (40 samples, 20 per class).}
 \end{figure}
 
 \section{Perceptron Learning Algorithm}
@@ -261,9 +261,9 @@ def generate_dataset(n_per_class=20, mean0=(-1.2, -1.2), mean1=(1.2, 1.2),
 The perceptron was initialized with weights and bias, and trained using the standard stochastic PLA update. At each iteration, a currently misclassified sample $x_i$ with signed label $y_i \in \{-1,+1\}$ is selected and the parameters are updated as
 
 \[
-\mathbf{w} \leftarrow \mathbf{w} + \eta\, y_i\, \mathbf{x}_i,
-\qquad
-b \leftarrow b + \eta\, y_i
+    \mathbf{w} \leftarrow \mathbf{w} + \eta\, y_i\, \mathbf{x}_i,
+    \qquad
+    b \leftarrow b + \eta\, y_i
 \]
 
 where $\eta$ is the learning rate. Training continues until no sample is misclassified (convergence) or a maximum number of iterations is reached.
@@ -338,20 +338,14 @@ anim = FuncAnimation(fig, draw, frames=len(history), interval=600)
 anim.save("perceptron_learning.gif", writer=PillowWriter(fps=2))
 \end{lstlisting}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.7\textwidth]{animation_snapshot.png}
-\caption{A mid-training frame from the animation, showing the current decision boundary, misclassified points (orange), the sample used for the update (green), and the live parameter panel. The full animated sequence is provided as \texttt{perceptron\_learning.gif}.}
-\end{figure}
-
 \section{Convergence Behaviour}
 
 Starting from weights and bias deliberately set far from a good separator ($\mathbf{w}=[-2.0,\ 3.0]$, $b=4.0$, $\eta=1.0$), the perceptron converged in 9 iterations.
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=0.65\textwidth]{convergence_baseline.png}
-\caption{Number of misclassified samples versus training iteration for the baseline run.}
+    \centering
+    \includegraphics[width=0.65\textwidth]{./outputs/convergence_baseline.png}
+    \caption{Number of misclassified samples versus training iteration for the baseline run.}
 \end{figure}
 
 The curve is not monotonically decreasing: a single-sample update that corrects the point it was trained on can simultaneously move the boundary across other, previously correctly classified points, temporarily increasing the misclassification count. This is expected, since the perceptron rule greedily fixes one point at a time without minimizing a global error function. Because the two classes are linearly separable, the Perceptron Convergence Theorem guarantees termination in a finite number of steps, bounded above by $(R/\gamma)^2$, where $R$ is the maximum sample norm and $\gamma$ is the margin of the optimal separating hyperplane.
@@ -376,9 +370,9 @@ h_scaled = train_perceptron(X_scaled, y, lr=1.0, w_init=[0.1, 0.1], b_init=0.0, 
 \end{lstlisting}
 
 \begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{sweep_comparison.png}
-\caption{Misclassified samples versus iteration under varying learning rate, weight initialization, bias initialization, and feature scaling.}
+    \centering
+    \includegraphics[width=\textwidth]{./outputs/sweep_comparison.png}
+    \caption{Misclassified samples versus iteration under varying learning rate, weight initialization, bias initialization, and feature scaling.}
 \end{figure}
 
 \textbf{Learning rate.} On linearly separable data, the sign of the update direction does not depend on the magnitude of $\eta$, only the step size does. Consequently the number of iterations to convergence is largely insensitive to $\eta$; the small differences observed here arise from $\eta$ interacting with the random tie-breaking order among misclassified points. A very large $\eta$ can, however, cause large, unstable swings in the boundary between updates, which would matter more on noisy or overlapping data.
