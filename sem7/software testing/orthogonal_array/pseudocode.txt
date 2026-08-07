@@ -1,0 +1,54 @@
+ALGORITHM GenerateOrthogonalArray(k, p)
+
+INPUT:
+    k = number of factors
+    p = number of levels per factor
+
+OUTPUT:
+    Orthogonal array OA(N, k, p, 2)
+
+1. Factor p into pairwise coprime prime powers:
+       p = q1 × q2 × ... × qr
+
+2. FOR each qi:
+       d ← 1
+
+       WHILE (qi^d - 1) / (qi - 1) < k:
+           d ← d + 1
+
+       Construct finite field GF(qi)
+
+       Select k vectors v1, v2, ..., vk ∈ GF(qi)^d
+       such that no two are scalar multiples.
+
+       Initialize Ai as an empty array.
+
+       FOR each vector x ∈ GF(qi)^d:
+           Create a new row R.
+           FOR j ← 1 TO k:
+               R[j] ← x · vj
+           END FOR
+           Append R to Ai.
+       END FOR
+
+3. A ← A1
+
+4. FOR i ← 2 TO r:
+       Initialize empty array C.
+       FOR each row a ∈ A:
+           FOR each row b ∈ Ai:
+               Create a new row c.
+               FOR j ← 1 TO k:
+                   c[j] ← a[j] × qi + b[j]
+               END FOR
+               Append c to C.
+           END FOR
+       END FOR
+       A ← C
+   END FOR
+
+5. FOR every entry x in A:
+       x ← x + 1
+   END FOR
+
+6. RETURN A
