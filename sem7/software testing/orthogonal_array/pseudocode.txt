@@ -1,54 +1,120 @@
-ALGORITHM GenerateOrthogonalArray(k, p)
+// ============================================================
+// TOP LEVEL: generate OA(N, factors, levels, strength=2)
+// ============================================================
+function generateOrthogonalArray(factors, levels):
+    assert factors >= 2 and levels >= 2
 
-INPUT:
-    k = number of factors
-    p = number of levels per factor
+    components = primePowerFactorize(levels)   // e.g. 12 -> [4, 3]
 
-OUTPUT:
-    Orthogonal array OA(N, k, p, 2)
+    result = null
+    currentLevels = 1
 
-1. Factor p into pairwise coprime prime powers:
-       p = q1 × q2 × ... × qr
+    for q in components:
+        componentOA = generatePrimePowerOA(factors, q)
 
-2. FOR each qi:
-       d ← 1
+        if result == null:
+            result = componentOA
+            currentLevels = q
+        else:
+            result = directProduct(result, currentLevels,
+                                    componentOA, q)
+            currentLevels *= q
 
-       WHILE (qi^d - 1) / (qi - 1) < k:
-           d ← d + 1
+    for each row in result:
+        for each value in row:
+            value += 1        // shift levels from 0..p-1 to 1..p
 
-       Construct finite field GF(qi)
+    return result
 
-       Select k vectors v1, v2, ..., vk ∈ GF(qi)^d
-       such that no two are scalar multiples.
 
-       Initialize Ai as an empty array.
+// ============================================================
+// CORE: build OA for a single prime power q = p^r
+// via GF(q) vector space construction
+// ============================================================
+function generatePrimePowerOA(factors, q):
+    field = FiniteField(q)              // GF(q) arithmetic
 
-       FOR each vector x ∈ GF(qi)^d:
-           Create a new row R.
-           FOR j ← 1 TO k:
-               R[j] ← x · vj
-           END FOR
-           Append R to Ai.
-       END FOR
+    // 1. find smallest dimension d such that number of
+    //    1-D subspaces of GF(q)^d >= factors
+    //        subspaces = (q^d - 1) / (q - 1)
+    dimension = 1
+    rows = q
+    while (rows - 1) / (q - 1) < factors:
+        rows *= q
+        dimension += 1
+        // guard against overflow / huge arrays
 
-3. A ← A1
+    // 2. enumerate "canonical direction" vectors:
+    //    one representative per 1-D subspace of GF(q)^d
+    //    (first non-zero coordinate == 1)
+    directions = []
+    for code in 1 .. rows-1:
+        v = numberToVector(code, dimension, q)   // base-q digits
+        if isCanonicalDirection(v):
+            directions.append(v)
+            if len(directions) == factors: break
 
-4. FOR i ← 2 TO r:
-       Initialize empty array C.
-       FOR each row a ∈ A:
-           FOR each row b ∈ Ai:
-               Create a new row c.
-               FOR j ← 1 TO k:
-                   c[j] ← a[j] × qi + b[j]
-               END FOR
-               Append c to C.
-           END FOR
-       END FOR
-       A ← C
-   END FOR
+    assert len(directions) == factors
 
-5. FOR every entry x in A:
-       x ← x + 1
-   END FOR
+    // 3. build the array: every point x in GF(q)^d is a row,
+    //    every direction v_j is a column;
+    //    entry(row, col) = dot(x, v_j) over GF(q)
+    OA = matrix[rows][factors]
+    for r in 0 .. rows-1:
+        x = numberToVector(r, dimension, q)
+        for c in 0 .. factors-1:
+            OA[r][c] = dotProduct(x, directions[c], field)
 
-6. RETURN A
+    return OA
+
+
+// ============================================================
+// Combine two OAs (different level counts) into one
+// via Kronecker/direct product on rows
+// ============================================================
+function directProduct(A, levelsA, B, levelsB):
+    assert A.cols == B.cols
+    factors = A.cols
+    result = []
+
+    for rowA in A:
+        for rowB in B:
+            row = new array[factors]
+            for c in 0 .. factors-1:
+                row[c] = rowA[c] * levelsB + rowB[c]   // mixed-radix combine
+            result.append(row)
+
+    return result   // has levelsA*levelsB levels, |A|*|B| rows
+
+
+// ============================================================
+// Supporting: prime power factorization of "levels"
+// ============================================================
+function primePowerFactorize(n):
+    factors = []
+    for prime in 2 .. sqrt(n):
+        if n % prime != 0: continue
+        power = 1
+        while n % prime == 0:
+            n /= prime
+            power *= prime
+        factors.append(power)
+    if n > 1: factors.append(n)
+    return factors
+
+
+// ============================================================
+// Supporting: GF(q) field ops (elements coded as integers
+// representing base-p coefficient vectors of length r)
+// ============================================================
+function FiniteField(q):
+    (p, r) = getPrimeAndDegree(q)
+    irreducible = findIrreduciblePolynomial(p, r)   // brute force + trial division
+    // add(a,b): coefficient-wise mod p
+    // multiply(a,b): polynomial multiply then reduce mod `irreducible`
+
+function dotProduct(x, v, field):
+    sum = 0
+    for i in 0 .. len(x)-1:
+        sum = field.add(sum, field.multiply(x[i], v[i]))
+    return sum
