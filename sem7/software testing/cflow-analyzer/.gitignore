@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tab.c
+*.tab.h
+lex.yy.c
+cflow-analyzer
+*.o
