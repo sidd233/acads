@@ -76,6 +76,7 @@ BASE_COLUMNS: tuple[str, ...] = (
     "girth",
     "odd_girth",
     "num_simplicial",
+    "degeneracy",
 )
 
 RESULT_COLUMNS: tuple[str, ...] = (
@@ -114,6 +115,7 @@ def row_for(D: Digraph, canon_max_n: int = CANON_MAX_N) -> dict[str, object]:
         "girth": inv["girth"],
         "odd_girth": inv["odd_girth"],
         "num_simplicial": inv["num_simplicial"],
+        "degeneracy": inv["degeneracy"],
         "has_2kernel": int(exists),
         "count_2kernels": len(kernels),
         "min_size": min(sizes) if sizes else None,
@@ -146,8 +148,35 @@ def connect(path: str = DEFAULT_DB) -> sqlite3.Connection:
         "(key TEXT, family TEXT, PRIMARY KEY (key, family))"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS graphs_n ON graphs (n)")
+    # Migration: a database built before a column existed gets it added here, so old
+    # census.sqlite3 files keep working without a full re-run.  New rows values are
+    # NULL until backfilled (see `backfill_column`).
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(graphs)")}
+    for name in ALL_COLUMNS:
+        if name not in existing:
+            kind = "TEXT" if name in ("key", "forcing_verdict") else "INTEGER"
+            conn.execute(f"ALTER TABLE graphs ADD COLUMN {name} {kind}")
     conn.commit()
     return conn
+
+
+def backfill_column(
+    conn: sqlite3.Connection, column: str, compute: Callable[[Digraph], object], quiet: bool = False
+) -> int:
+    """Fill in ``column`` for every row where it is still NULL, decoding each key back
+    to a :class:`Digraph` and calling ``compute`` on it.  Cheaper than re-running a whole
+    family when only one new, inexpensive column needs a value."""
+    rows = conn.execute(f"SELECT key FROM graphs WHERE {column} IS NULL").fetchall()
+    for i, row in enumerate(rows):
+        D = decode(row["key"])
+        conn.execute(
+            f"UPDATE graphs SET {column} = ? WHERE key = ?", (compute(D), row["key"])
+        )
+        if not quiet and (i + 1) % 20000 == 0:
+            print(f"  backfill {column}: {i + 1}/{len(rows)}", file=sys.stderr)
+            conn.commit()
+    conn.commit()
+    return len(rows)
 
 
 def insert(conn: sqlite3.Connection, rows: Iterable[dict[str, object]], family: str) -> int:
@@ -569,6 +598,22 @@ def q_dags(conn: sqlite3.Connection, family: str | None = None) -> None:
     )
 
 
+def q_degeneracy(conn: sqlite3.Connection, family: str = "atlas7,graphs8,graphs9") -> None:
+    """E7: per degeneracy value, how many graphs, how many have a 2-kernel, how many
+    forcing disagreements, and the largest number of 2-kernels seen."""
+    where, names = _family_filter(family)
+    _show(
+        conn,
+        f"""SELECT degeneracy, COUNT(*) AS graphs, SUM(has_2kernel) AS with_2kernel,
+                   SUM(1 - forcing_agrees) AS forcing_disagreements,
+                   MAX(count_2kernels) AS max_count_2kernels
+            FROM graphs JOIN membership USING (key)
+            WHERE {where} AND degeneracy IS NOT NULL
+            GROUP BY degeneracy ORDER BY degeneracy""",
+        names,
+    )
+
+
 QUERIES: dict[str, Callable[..., None]] = {
     "summary": q_summary,
     "classes": q_classes,
@@ -576,6 +621,12 @@ QUERIES: dict[str, Callable[..., None]] = {
     "digraphs": q_digraphs,
     "cubic": q_cubic,
     "dags": q_dags,
+    "degeneracy": q_degeneracy,
+}
+
+#: columns that can be filled in on a database built before they existed, and how
+BACKFILLABLE: dict[str, Callable[[Digraph], object]] = {
+    "degeneracy": cls.degeneracy,
 }
 
 
@@ -602,6 +653,12 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("families", help="list the known families")
 
+    backfill_cmd = sub.add_parser(
+        "backfill", help="fill in a column added after some rows were inserted"
+    )
+    backfill_cmd.add_argument("column", choices=sorted(BACKFILLABLE))
+    backfill_cmd.add_argument("--db", dest="db_override", default=None)
+
     args = parser.parse_args(argv)
     if args.command == "families":
         for name, fn in sorted(FAMILIES.items()):
@@ -614,6 +671,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         for family in args.family:
             run_family(conn, family, limit=args.limit, quiet=args.quiet)
+        return 0
+    if args.command == "backfill":
+        n = backfill_column(conn, args.column, BACKFILLABLE[args.column])
+        print(f"backfilled {args.column} for {n} rows", file=sys.stderr)
         return 0
     query = QUERIES[args.name]
     if args.family is not None:

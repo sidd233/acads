@@ -162,6 +162,43 @@ def test_row_contents_match_the_library(tmp_path) -> None:
         assert row["n"] == D.n and row["m"] == D.num_edges
         if kernels:
             assert row["min_size"] == min(bin(S).count("1") for S in kernels)
+        assert row["degeneracy"] == cls.degeneracy(D)
+
+
+def test_migration_adds_missing_columns_and_backfill_fills_them(tmp_path) -> None:
+    """A database built before `degeneracy` existed gets the column added on connect,
+    and `backfill_column` fills it in without touching any other column."""
+    db = str(tmp_path / "t.sqlite3")
+    conn = census.connect(db)
+    census.run_family(conn, "named", quiet=True)
+    before = {
+        r["key"]: dict(r) for r in conn.execute("SELECT * FROM graphs").fetchall()
+    }
+
+    conn.execute("ALTER TABLE graphs RENAME TO graphs_old")
+    columns = [c for c in census.ALL_COLUMNS if c != "degeneracy"]
+    conn.execute(
+        f"CREATE TABLE graphs AS SELECT {', '.join(columns)} FROM graphs_old"
+    )
+    conn.execute("DROP TABLE graphs_old")
+    conn.commit()
+    assert "degeneracy" not in {
+        r["name"] for r in conn.execute("PRAGMA table_info(graphs)")
+    }
+
+    conn = census.connect(db)  # re-running connect() must migrate the schema
+    assert "degeneracy" in {r["name"] for r in conn.execute("PRAGMA table_info(graphs)")}
+    assert conn.execute(
+        "SELECT COUNT(*) c FROM graphs WHERE degeneracy IS NULL"
+    ).fetchone()["c"] == len(before)
+
+    n = census.backfill_column(conn, "degeneracy", cls.degeneracy)
+    assert n == len(before)
+    for row in conn.execute("SELECT * FROM graphs").fetchall():
+        D = census.decode(row["key"])
+        assert row["degeneracy"] == cls.degeneracy(D)
+        for col in columns:
+            assert row[col] == before[row["key"]][col], f"{col} changed during backfill"
 
 
 # --------------------------------------------------------------------------------------

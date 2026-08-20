@@ -245,3 +245,37 @@ def test_bipartite_forcing_completeness_is_false() -> None:
     left, right = nx.bipartite.sets(G)
     pendants = {v for v in range(D.n) if D.degree(v) == 1}
     assert pendants & left and pendants & right
+
+
+def test_degeneracy_matches_networkx_core_number() -> None:
+    """Degeneracy is the maximum core number (Matula & Beck 1983)."""
+    import random
+
+    import networkx as nx
+
+    from twokernel import classes as cls
+
+    rng = random.Random(3)
+    for _ in range(200):
+        n = rng.randint(0, 12)
+        arcs = [
+            (u, v) for u in range(n) for v in range(n) if u < v and rng.random() < 0.3
+        ]
+        D = Digraph.from_edges(n, arcs)
+        expected = max(nx.core_number(D.underlying_networkx()).values(), default=0)
+        assert cls.degeneracy(D) == expected
+
+
+def test_forcing_completeness_fails_at_degeneracy_two() -> None:
+    """E7: unlike Theorem E2.1's chordal case, forcing is not complete on 2-degenerate
+    graphs.  C5 is the minimal witness: every vertex has degree 2 (as low as
+    2-degeneracy can force) but none is simplicial, since C5 is triangle-free -- so R4's
+    clique test fails everywhere at once and the closure cannot get started."""
+    from twokernel import classes as cls
+
+    C5 = gen.cycle(5)
+    assert cls.degeneracy(C5) == 2
+    assert not has_2kernel(C5)
+    _status, verdict = forcing_closure(C5)
+    assert verdict is Verdict.UNDECIDED
+    assert cls.simplicial_vertices(C5) == 0, "C5 must have no simplicial vertex"

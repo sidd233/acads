@@ -44,16 +44,18 @@ Reproduce with:
 
 ```
 python3.14 -m venv env && ./env/bin/pip install networkx pytest pynauty
-./env/bin/python -m pytest -q                                   # 106 tests
+./env/bin/python -m pytest -q                                   # 112 tests
 ./env/bin/python -m twokernel.census run --family atlas7 --family graphs8 \
     --family graphs9 --family named --family oriented6 --family digraphs5 \
     --family digraphs6 --family dags7 --family dags8sample --family cubic \
     --family cubic_trianglefree --family cubic_girth5
+./env/bin/python -m twokernel.census backfill degeneracy         # adds/fills E7's column
 ./env/bin/python -m twokernel.census query classes --family atlas7,graphs8,graphs9  # E1
 ./env/bin/python -m twokernel.census query forcing --family atlas7,graphs8,graphs9  # E2
 ./env/bin/python -m twokernel.census query digraphs   # E3
 ./env/bin/python -m twokernel.census query cubic      # E4
 ./env/bin/python -m twokernel.census query dags       # E6
+./env/bin/python -m twokernel.census query degeneracy # E7
 ./env/bin/python -m twokernel.experiments all         # E5, E6
 ```
 
@@ -63,7 +65,7 @@ Every canned query prints the exact SQL it runs before its output.
 
 ## 1. Ground truth
 
-All 106 tests pass. No expected value was edited and no disagreement with a published
+All 112 tests pass. No expected value was edited and no disagreement with a published
 theorem was found, so there is nothing to report here beyond the values the brief asked to
 have recorded.
 
@@ -474,7 +476,75 @@ about the DAG structure helps it.
 
 ---
 
-## 8. What surprised me
+## 8. E7 — k-degenerate graphs
+
+Golovach and Kratochvíl have a companion dichotomy for `k`-degenerate graphs (TAMC 2008,
+LNCS 4978, 182–191, cited in section 3) with the same "polynomial iff at most one such set"
+shape as their chordal result. Degeneracy is a natural next class to test: it is computed
+here by repeated min-degree peeling (Matula & Beck 1983) and validated against
+`nx.core_number` before use. A `degeneracy` column was added to the census schema and
+backfilled for all 755 516 existing rows (`python -m twokernel.census backfill degeneracy`).
+
+```sql
+SELECT degeneracy, COUNT(*) AS graphs, SUM(has_2kernel) AS with_2kernel,
+       SUM(1 - forcing_agrees) AS forcing_disagreements,
+       MAX(count_2kernels) AS max_count_2kernels
+FROM graphs JOIN membership USING (key)
+WHERE family IN ('atlas7', 'graphs8', 'graphs9') AND degeneracy IS NOT NULL
+GROUP BY degeneracy ORDER BY degeneracy
+```
+
+Over all 288 267 graphs on at most 9 vertices, grouped by **exact** degeneracy:
+
+| degeneracy | graphs | with a 2-kernel | forcing disagreements | max #2-kernels |
+|---:|---:|---:|---:|---:|
+| 0 | 10 | 10 | 0 | 1 |
+| 1 | 299 | 109 | **0** | 1 |
+| 2 | 35 739 | 13 370 | 3 388 | 4 |
+| 3 | 173 728 | 74 357 | 34 839 | 4 |
+| 4 | 72 662 | 34 650 | 16 616 | 6 |
+| 5 | 5 574 | 2 830 | 1 027 | 4 |
+| 6 | 242 | 109 | 29 | 4 |
+| 7 | 12 | 4 | 0 | 4 |
+| 8 | 1 | 0 | 0 | 0 |
+
+**Is forcing complete on `k`-degenerate graphs for small `k`? Only for `k ≤ 1`, and that
+case is not new.** Degeneracy-0 graphs are edgeless (trivial) and degeneracy-1 graphs are
+exactly the forests — a graph is 1-degenerate iff every subgraph has a vertex of degree
+`≤ 1` iff it is acyclic. Forests are chordal, so this row is already implied by Theorem
+E2.1; it is not a new complete class. Cumulatively, "at most `k`-degenerate" tracks the
+same story: 0 disagreements through `k ≤ 1`, then 3388 of 36 048 (9.4 %) as soon as `k = 2`
+is included.
+
+**At `k = 2` the answer is a clean no, not a conjecture: forcing is incomplete, with 3388
+disagreements among the 35 739 graphs of degeneracy exactly 2 (9.5 %), and uniqueness fails
+too — `MAX(count_2kernels) = 4`.** The smallest disagreement is `DqK`, `n = 5`, `m = 5`:
+degree sequence `(2,2,2,2,2)`, i.e. **`C₅`** — the same graph that already broke both the
+"forcing decides bipartite graphs" conjecture in one form and every other non-chordal class
+in section 3.
+
+**Where the E2.1-style argument breaks.** The two structural facts the task suggested —
+*a `k`-degenerate graph has a vertex of degree at most `k`* and *induced subgraphs of a
+`k`-degenerate graph stay `k`-degenerate* — are both true and both used correctly by the
+peeling algorithm above; degeneracy is exactly the right notion for finding a low-degree
+vertex to recurse on. But Theorem E2.1's proof does not use "some vertex of low degree" as
+its base case, it uses "some vertex whose neighbourhood is a *clique*" (a simplicial
+vertex), because that is what makes R4 — "no independent pair among the non-`OUT`
+neighbours" — fire. Chordality guarantees a simplicial vertex in every induced subgraph;
+degeneracy only guarantees a low-*degree* one, and a low-degree vertex need not be
+simplicial. `C₅` is the minimal witness: every vertex has degree exactly 2 (as low as
+`2`-degeneracy can force), but no vertex is simplicial, since `C₅` is triangle-free — so
+R4's clique test fails at every vertex simultaneously and the closure cannot get started,
+exactly as it cannot on `C₅` anywhere else in this document. So the gap is not a matter of
+searching harder for a cleverer induction; the specific combinatorial fact the chordal proof
+leans on (low degree implies a clique neighbourhood, for *some* vertex) has no analogue in
+`k`-degenerate graphs, and `C₅` shows the two properties can come fully apart even at the
+smallest possible degeneracy above a forest. This is reported as **refuted**, not left as a
+conjecture, since an explicit counterexample was found rather than merely not found.
+
+---
+
+## 9. What surprised me
 
 Three things.
 
@@ -507,7 +577,7 @@ opposite of what happens in Theorems A and B where digons are freely available.
 
 ---
 
-## 9. Limitations
+## 10. Limitations
 
 * Exhaustive ranges: all graphs to `n = 9`, all digraphs with `δ⁺ ≥ 2` to `n = 6`, all
   oriented graphs with `δ⁺ ≥ 2` to `n = 6`, all DAGs with the sink/`d⁺ ≥ 2` condition to

@@ -38,6 +38,7 @@ __all__ = [
     "odd_girth",
     "independence_number",
     "clique_number",
+    "degeneracy",
     "invariants",
 ]
 
@@ -418,6 +419,33 @@ def odd_girth(D: Digraph) -> int | None:
     return best
 
 
+def degeneracy(D: Digraph) -> int:
+    """The degeneracy of the underlying graph: the smallest ``k`` such that every
+    subgraph has a vertex of degree at most ``k``.
+
+    Computed by repeated min-degree peeling: repeatedly remove a vertex of current
+    minimum degree, and take the degeneracy to be the largest such minimum degree seen.
+    This is the standard characterisation (Matula & Beck 1983) -- the peeling order is a
+    degeneracy ordering, and no elimination order can do better, since the last vertex
+    of the densest ``(k+1)``-vertex subgraph always has degree `>= k` in it at the point
+    it is removed.
+    """
+    if D.n == 0:
+        return 0
+    remaining = D.full
+    adj = list(D.adj)
+    deg = [popcount(adj[v] & remaining) for v in range(D.n)]
+    best = 0
+    for _ in range(D.n):
+        v = min(bits(remaining), key=lambda u: deg[u])
+        best = max(best, deg[v])
+        bit = 1 << v
+        remaining &= ~bit
+        for w in bits(adj[v] & remaining):
+            deg[w] -= 1
+    return best
+
+
 def invariants(D: Digraph) -> dict[str, int | None]:
     """Basic parameters recorded for every census row."""
     degrees = [D.degree(v) for v in range(D.n)]
@@ -433,4 +461,5 @@ def invariants(D: Digraph) -> dict[str, int | None]:
         "girth": girth(D),
         "odd_girth": odd_girth(D),
         "num_simplicial": popcount(simplicial_vertices(D)),
+        "degeneracy": degeneracy(D),
     }
