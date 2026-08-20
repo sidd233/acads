@@ -9,6 +9,7 @@ import random
 import networkx as nx
 import pytest
 
+from twokernel import canon
 from twokernel import census
 from twokernel import classes as cls
 from twokernel import experiments
@@ -63,12 +64,76 @@ def test_canonical_key_is_invariant_under_relabelling() -> None:
         assert census.canonical_key(relabelled)[0] == census.canonical_key(D)[0]
 
 
+def test_both_canonical_backends_induce_the_same_isomorphism_classes() -> None:
+    """The fallback backend must partition digraphs exactly as pynauty does.
+
+    Skipped when pynauty is absent, in which case the fallback *is* the only backend and
+    the tests around it already cover it.
+    """
+    if not canon.has_pynauty:
+        pytest.skip("pynauty not installed; the fallback is the only backend")
+    rng = random.Random(11)
+    instances = []
+    for _ in range(150):
+        n = rng.randint(2, 7)
+        arcs = [
+            (u, v) for u in range(n) for v in range(n) if u != v and rng.random() < 0.35
+        ]
+        instances.append(Digraph.from_arcs(n, arcs))
+    for A, B in itertools.combinations(instances, 2):
+        if A.n != B.n:
+            continue
+        fallback_same = _fallback_key(A) == _fallback_key(B)
+        pynauty_same = canon.canonical_key(A)[0] == canon.canonical_key(B)[0]
+        assert fallback_same == pynauty_same
+
+
+def _fallback_key(D: Digraph) -> str:
+    """The key the fallback backend would produce, bypassing pynauty."""
+    perm = canon._wl_canonical_labelling(D)
+    assert perm is not None
+    pos = {u: i for i, u in enumerate(perm)}
+    return canon.encode(Digraph.from_arcs(D.n, [(pos[u], pos[w]) for u, w in D.arcs()]))
+
+
 def test_canonical_key_agrees_with_networkx_isomorphism_on_digraphs() -> None:
     """Same canonical key iff isomorphic, checked against VF2 on orientations of C5."""
     orientations = list(gen.all_orientations(gen.cycle(5)))
     for A, B in itertools.combinations(orientations, 2):
         same_key = census.canonical_key(A)[0] == census.canonical_key(B)[0]
         assert same_key == nx.is_isomorphic(A.to_digraph(), B.to_digraph())
+
+
+def test_all_graphs_reproduces_the_known_counts() -> None:
+    """Canonical augmentation must reproduce the number of graphs on n vertices."""
+    known = {0: 1, 1: 1, 2: 2, 3: 4, 4: 11, 5: 34, 6: 156, 7: 1044, 8: 12346}
+    for n, expected in known.items():
+        if n == 8 and not canon.has_pynauty:
+            continue  # the fallback backend cannot canonicalise n = 8
+        assert sum(1 for _ in gen.all_graphs(n)) == expected
+
+
+def test_all_digraphs_reproduces_the_known_counts() -> None:
+    """OEIS A000273: digraphs on n nodes up to isomorphism."""
+    known = {0: 1, 1: 1, 2: 3, 3: 16, 4: 218, 5: 9608}
+    for n, expected in known.items():
+        if n >= 5 and not canon.has_pynauty:
+            continue  # the fallback backend is too slow to enumerate this level
+        assert sum(1 for _ in gen.all_digraphs(n)) == expected
+
+
+def test_all_digraphs_are_pairwise_non_isomorphic() -> None:
+    for n in range(1, 5):
+        digraphs = list(gen.all_digraphs(n))
+        for A, B in itertools.combinations(digraphs, 2):
+            assert not nx.is_isomorphic(A.to_digraph(), B.to_digraph())
+
+
+def test_all_graphs_are_pairwise_non_isomorphic() -> None:
+    for n in range(1, 8):
+        graphs = list(gen.all_graphs(n))
+        for A, B in itertools.combinations(graphs, 2):
+            assert not nx.is_isomorphic(A.underlying_networkx(), B.underlying_networkx())
 
 
 # --------------------------------------------------------------------------------------

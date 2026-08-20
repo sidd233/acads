@@ -24,6 +24,8 @@ from twokernel.core import Digraph, bits, popcount
 __all__ = [
     "from_nx",
     "atlas_graphs",
+    "all_graphs",
+    "all_digraphs",
     "path",
     "cycle",
     "complete",
@@ -555,3 +557,99 @@ def random_dag_min_outdeg(
         for w in bits(out[v]):
             inn[w] |= 1 << v
     return Digraph(n, out, inn)
+
+
+_GRAPH_CACHE: dict[int, list[Digraph]] = {}
+
+
+def all_graphs(n: int) -> Iterator[Digraph]:
+    """Every graph on *exactly* ``n`` vertices, up to isomorphism.
+
+    Canonical augmentation: deleting any vertex of a graph on ``n`` vertices leaves a graph
+    on ``n-1`` vertices, so extending every graph on ``n-1`` vertices by one new vertex
+    joined to every possible subset produces every isomorphism class at least once.
+    Duplicates are removed with :func:`twokernel.canon.certificate`, which is exact.  This
+    is how the census reaches ``n = 8`` and ``n = 9`` without ``geng``; it reproduces the
+    known counts 1, 1, 2, 4, 11, 34, 156, 1044, 12346, 274668.
+
+    Levels up to 8 are cached because each is built from the one below; larger levels are
+    streamed, so only the certificates of the level being generated are held.
+    """
+    from twokernel.canon import certificate
+
+    if n in _GRAPH_CACHE:
+        yield from _GRAPH_CACHE[n]
+        return
+    if n <= 7:
+        result = list(atlas_graphs(min_n=n, max_n=n))
+        _GRAPH_CACHE[n] = result
+        yield from result
+        return
+    previous = list(all_graphs(n - 1))
+    seen: set[bytes | str] = set()
+    keep = n <= 8
+    result = []
+    for G in previous:
+        base = [
+            (v, w) for v in range(n - 1) for w in bits(G.adj[v] & ~((1 << (v + 1)) - 1))
+        ]
+        for subset in range(1 << (n - 1)):
+            D = Digraph.from_edges(n, base + [(v, n - 1) for v in bits(subset)])
+            cert = certificate(D)
+            if cert not in seen:
+                seen.add(cert)
+                if keep:
+                    result.append(D)
+                yield D
+    if keep:
+        _GRAPH_CACHE[n] = result
+
+
+_DIGRAPH_CACHE: dict[int, list[Digraph]] = {}
+
+
+def all_digraphs(n: int) -> Iterator[Digraph]:
+    """Every digraph on *exactly* ``n`` vertices, up to isomorphism.
+
+    The same canonical augmentation as :func:`all_graphs`, but the new vertex now has four
+    choices against each old one -- no arc, out, in, or both -- so each digraph on ``n-1``
+    vertices spawns ``4^(n-1)`` candidates.  Reproduces the known counts
+    1, 1, 3, 16, 218, 9608, 1540944 (OEIS A000273).
+
+    Note that the base level must be *all* digraphs on ``n-1`` vertices, not a filtered
+    family: deleting a vertex from a digraph with ``delta+ >= 2`` can leave one without it.
+    """
+    from twokernel.canon import certificate
+
+    if n in _DIGRAPH_CACHE:
+        yield from _DIGRAPH_CACHE[n]
+        return
+    if n <= 1:
+        result = [Digraph(n, [0] * n, [0] * n)]
+        _DIGRAPH_CACHE[n] = result
+        yield from result
+        return
+    previous = list(all_digraphs(n - 1))
+    seen: set[bytes | str] = set()
+    keep = n <= 5
+    result = []
+    new = n - 1
+    new_bit = 1 << new
+    for G in previous:
+        for out_mask in range(1 << new):
+            for in_mask in range(1 << new):
+                out = list(G.out) + [out_mask]
+                inn = list(G.inn) + [in_mask]
+                for w in bits(in_mask):
+                    out[w] |= new_bit
+                for w in bits(out_mask):
+                    inn[w] |= new_bit
+                D = Digraph(n, out, inn)
+                cert = certificate(D)
+                if cert not in seen:
+                    seen.add(cert)
+                    if keep:
+                        result.append(D)
+                    yield D
+    if keep:
+        _DIGRAPH_CACHE[n] = result

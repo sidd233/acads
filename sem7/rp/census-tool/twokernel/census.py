@@ -17,7 +17,6 @@ and ``Delta`` cannot both exist.  They are ``min_degree`` (delta) and ``max_degr
 from __future__ import annotations
 
 import argparse
-import itertools
 import sqlite3
 import sys
 from collections.abc import Callable, Iterable, Iterator
@@ -26,6 +25,17 @@ import networkx as nx
 
 from twokernel import classes as cls
 from twokernel import generators as gen
+from twokernel.canon import (
+    CANON_MAX_N,
+    canonical_key,
+    canonical_labelling,
+    decode,
+    digraph6,
+    encode,
+    graph6,
+    has_pynauty,
+    wl_colours,
+)
 from twokernel.core import (
     Digraph,
     Verdict,
@@ -38,7 +48,6 @@ from twokernel.core import (
 )
 
 DEFAULT_DB = "census.sqlite3"
-CANON_MAX_N = 7
 
 FLAG_COLUMNS: tuple[str, ...] = cls.UNDIRECTED_FLAGS + cls.DIGRAPH_FLAGS
 
@@ -46,147 +55,6 @@ FLAG_COLUMNS: tuple[str, ...] = cls.UNDIRECTED_FLAGS + cls.DIGRAPH_FLAGS
 # --------------------------------------------------------------------------------------
 # graph6 / digraph6
 # --------------------------------------------------------------------------------------
-
-
-def _R(bitvector: list[int]) -> str:
-    """nauty's ``R(x)``: pad to a multiple of 6, then one printable byte per 6 bits."""
-    padded = bitvector + [0] * (-len(bitvector) % 6)
-    return "".join(
-        chr(63 + int("".join(map(str, padded[i : i + 6])), 2))
-        for i in range(0, len(padded), 6)
-    )
-
-
-def _N(n: int) -> str:
-    """nauty's ``N(n)`` for ``n <= 62``, which covers every census instance."""
-    if n <= 62:
-        return chr(63 + n)
-    raise ValueError("n > 62 is outside the census range")
-
-
-def graph6(D: Digraph) -> str:
-    """graph6 of the underlying graph, without the ``>>graph6<<`` header."""
-    bitvector = [
-        1 if D.adj[i] & (1 << j) else 0 for j in range(D.n) for i in range(j)
-    ]
-    return _N(D.n) + _R(bitvector)
-
-
-def digraph6(D: Digraph) -> str:
-    """digraph6: ``&``, ``N(n)``, then the adjacency matrix read row by row."""
-    bitvector = [
-        1 if D.out[i] & (1 << j) else 0 for i in range(D.n) for j in range(D.n)
-    ]
-    return "&" + _N(D.n) + _R(bitvector)
-
-
-def encode(D: Digraph) -> str:
-    """graph6 when the digraph is symmetric (it *is* a graph), digraph6 otherwise."""
-    return graph6(D) if D.is_symmetric() else digraph6(D)
-
-
-def decode(key: str) -> Digraph:
-    """Inverse of :func:`encode`, used to check the codec and to re-read the database."""
-    if key.startswith("&"):
-        n = ord(key[1]) - 63
-        data = key[2:]
-        bitvector = "".join(f"{ord(ch) - 63:06b}" for ch in data)
-        arcs = [
-            (i, j)
-            for i in range(n)
-            for j in range(n)
-            if bitvector[i * n + j] == "1"
-        ]
-        return Digraph.from_arcs(n, arcs)
-    n = ord(key[0]) - 63
-    bitvector = "".join(f"{ord(ch) - 63:06b}" for ch in key[1:])
-    edges = []
-    pos = 0
-    for j in range(n):
-        for i in range(j):
-            if bitvector[pos] == "1":
-                edges.append((i, j))
-            pos += 1
-    return Digraph.from_edges(n, edges)
-
-
-# --------------------------------------------------------------------------------------
-# canonical form
-# --------------------------------------------------------------------------------------
-
-
-def wl_colours(D: Digraph) -> list[int]:
-    """1-WL colour of each vertex, as ids assigned in a canonical (sorted) order.
-
-    Colours are isomorphism-invariant, so an isomorphism can only map a vertex onto one of
-    the same colour -- which is what makes the restricted search below exact.
-    """
-    colour = [0] * D.n
-    for _ in range(D.n):
-        signature = [
-            (
-                colour[v],
-                tuple(sorted(colour[w] for w in bits(D.out[v]))),
-                tuple(sorted(colour[w] for w in bits(D.inn[v]))),
-            )
-            for v in range(D.n)
-        ]
-        order = {sig: i for i, sig in enumerate(sorted(set(signature)))}
-        new = [order[sig] for sig in signature]
-        if new == colour:
-            break
-        colour = new
-    return colour
-
-
-def _signature(D: Digraph, perm: Iterable[int]) -> int:
-    """Adjacency bit vector of ``D`` relabelled by ``perm`` (new index -> old vertex)."""
-    perm = list(perm)
-    n = D.n
-    sig = 0
-    for i, u in enumerate(perm):
-        row = 0
-        out = D.out[u]
-        for j, w in enumerate(perm):
-            if out & (1 << w):
-                row |= 1 << (n - 1 - j)
-        sig |= row << (n * (n - 1 - i))
-    return sig
-
-
-def canonical_labelling(D: Digraph, max_n: int = CANON_MAX_N) -> list[int] | None:
-    """A canonical vertex order, or ``None`` when ``n`` exceeds ``max_n``.
-
-    The order minimises the adjacency bit vector over all relabellings that respect the
-    1-WL colour classes.  Isomorphic digraphs have corresponding colour classes, so they
-    reach the same minimum.
-    """
-    if D.n > max_n:
-        return None
-    colour = wl_colours(D)
-    classes: dict[int, list[int]] = {}
-    for v in range(D.n):
-        classes.setdefault(colour[v], []).append(v)
-    ordered = [classes[c] for c in sorted(classes)]
-    best: tuple[int, list[int]] | None = None
-    for combo in itertools.product(*(itertools.permutations(c) for c in ordered)):
-        perm = [v for block in combo for v in block]
-        sig = _signature(D, perm)
-        if best is None or sig < best[0]:
-            best = (sig, perm)
-    assert best is not None
-    return best[1]
-
-
-def canonical_key(D: Digraph, max_n: int = CANON_MAX_N) -> tuple[str, bool]:
-    """``(key, is_canonical)``: the canonical graph6/digraph6 string when it is
-    computable, otherwise the string of the labelling as given."""
-    perm = canonical_labelling(D, max_n)
-    if perm is None:
-        return encode(D), False
-    pos = {u: i for i, u in enumerate(perm)}
-    arcs = [(pos[u], pos[w]) for u, w in D.arcs()]
-    return encode(Digraph.from_arcs(D.n, arcs)), True
 
 
 # --------------------------------------------------------------------------------------
@@ -319,6 +187,16 @@ def _atlas7() -> Iterator[Digraph]:
     yield from gen.atlas_graphs()
 
 
+def _graphs8() -> Iterator[Digraph]:
+    """All 12346 graphs on exactly 8 vertices.  Exhaustive up to isomorphism."""
+    yield from gen.all_graphs(8)
+
+
+def _graphs9() -> Iterator[Digraph]:
+    """All 274668 graphs on exactly 9 vertices.  Exhaustive up to isomorphism."""
+    yield from gen.all_graphs(9)
+
+
 def _named() -> Iterator[Digraph]:
     """The named families, as a sanity strip through the database."""
     for n in range(1, 15):
@@ -367,6 +245,14 @@ def _digraphs5() -> Iterator[Digraph]:
         for D in gen.all_digraphs_min_outdeg(n, 2):
             if _connected(D):
                 yield D
+
+
+def _digraphs6() -> Iterator[Digraph]:
+    """Every digraph on exactly 6 vertices with delta+ >= 2, digons included, kept when
+    weakly connected.  Exhaustive up to isomorphism: 442458 of the 1540944 classes."""
+    for D in gen.all_digraphs(6):
+        if D.min_outdeg >= 2 and _connected(D):
+            yield D
 
 
 def _digraphs6sample() -> Iterator[Digraph]:
@@ -433,9 +319,12 @@ FAMILIES: dict[str, Callable[[], Iterator[Digraph]]] = {
     "cubic_trianglefree": _cubic_trianglefree,
     "cubic_girth5": _cubic_girth5,
     "atlas7": _atlas7,
+    "graphs8": _graphs8,
+    "graphs9": _graphs9,
     "named": _named,
     "oriented6": _oriented6,
     "digraphs5": _digraphs5,
+    "digraphs6": _digraphs6,
     "digraphs6sample": _digraphs6sample,
     "dags7": _dags7,
     "dags8sample": _dags8sample,
@@ -443,7 +332,7 @@ FAMILIES: dict[str, Callable[[], Iterator[Digraph]]] = {
 }
 
 EXHAUSTIVE: frozenset[str] = frozenset(
-    {"atlas7", "oriented6", "digraphs5", "dags7"}
+    {"atlas7", "graphs8", "graphs9", "oriented6", "digraphs5", "digraphs6", "dags7"}
 )
 
 
@@ -458,23 +347,30 @@ def run_family(
     if family not in FAMILIES:
         raise SystemExit(f"unknown family {family!r}; known: {', '.join(FAMILIES)}")
     seen: set[str] = set()
-    rows: list[dict[str, object]] = []
-    total = 0
-    for D in FAMILIES[family]():
-        total += 1
-        key, canonical = canonical_key(D)
-        if key in seen:
-            continue
-        seen.add(key)
-        row = row_for(D)
-        row["key"] = key
-        row["canonical"] = int(canonical)
-        rows.append(row)
-        if not quiet and len(rows) % 250 == 0:
-            print(f"  {family}: {len(rows)} distinct of {total} seen", file=sys.stderr)
-        if limit is not None and len(rows) >= limit:
-            break
-    inserted = insert(conn, rows, family)
+    counters = {"total": 0, "kept": 0}
+
+    def stream() -> Iterator[dict[str, object]]:
+        for D in FAMILIES[family]():
+            counters["total"] += 1
+            key, canonical = canonical_key(D)
+            if key in seen:
+                continue
+            seen.add(key)
+            row = row_for(D)
+            row["key"] = key
+            row["canonical"] = int(canonical)
+            counters["kept"] += 1
+            if not quiet and counters["kept"] % 2000 == 0:
+                print(
+                    f"  {family}: {counters['kept']} distinct of {counters['total']} seen",
+                    file=sys.stderr,
+                )
+            yield row
+            if limit is not None and counters["kept"] >= limit:
+                return
+
+    inserted = insert(conn, stream(), family)
+    total = counters["total"]
     if not quiet:
         kind = "exhaustive" if family in EXHAUSTIVE else "sampled"
         print(
@@ -520,18 +416,25 @@ def q_summary(conn: sqlite3.Connection, family: str | None = None) -> None:
     )
 
 
+def _family_filter(family: str) -> tuple[str, tuple[str, ...]]:
+    """``family`` may be a comma-separated list, e.g. ``atlas7,graphs8,graphs9``."""
+    names = tuple(f.strip() for f in family.split(",") if f.strip())
+    return "family IN (" + ", ".join("?" * len(names)) + ")", names
+
+
 def q_classes(conn: sqlite3.Connection, family: str = "atlas7") -> None:
     """E1: per class, how many members and how many have a 2-kernel."""
+    where, names = _family_filter(family)
     sql = """SELECT ? AS class, COUNT(*) AS members, SUM(has_2kernel) AS with_2kernel,
                     COUNT(*) - SUM(has_2kernel) AS without
              FROM graphs JOIN membership USING (key)
-             WHERE family = ? AND {flag} = 1"""
+             WHERE FAMILYFILTER AND {flag} = 1""".replace("FAMILYFILTER", where)
     print(f"-- E1 over family {family}")
     print(f"-- SQL (one per class): {' '.join(sql.split())}")
     print(f"   {'class':<20} {'members':>8} {'with':>8} {'without':>8}")
     print(f"   {'-' * 20} {'-' * 8} {'-' * 8} {'-' * 8}")
     for flag in FLAG_COLUMNS:
-        row = conn.execute(sql.format(flag=flag), (flag, family)).fetchone()
+        row = conn.execute(sql.format(flag=flag), (flag, *names)).fetchone()
         if row["members"]:
             print(
                 f"   {flag:<20} {row['members']:>8} {row['with_2kernel']:>8} "
@@ -540,19 +443,19 @@ def q_classes(conn: sqlite3.Connection, family: str = "atlas7") -> None:
     print()
     print("-- smallest members of each class with NO 2-kernel")
     small = """SELECT key, n, m FROM graphs JOIN membership USING (key)
-               WHERE family = ? AND {flag} = 1 AND has_2kernel = 0
-               ORDER BY n, m, key LIMIT 3"""
+               WHERE FAMILYFILTER AND {flag} = 1 AND has_2kernel = 0
+               ORDER BY n, m, key LIMIT 3""".replace("FAMILYFILTER", where)
     print(f"-- SQL (one per class): {' '.join(small.split())}")
     for flag in FLAG_COLUMNS:
-        rows = conn.execute(small.format(flag=flag), (family,)).fetchall()
+        rows = conn.execute(small.format(flag=flag), names).fetchall()
         if rows:
             shown = ", ".join(f"{r['key']} (n={r['n']}, m={r['m']})" for r in rows)
             print(f"   {flag:<20} {shown}")
         else:
             total = conn.execute(
                 f"SELECT COUNT(*) AS c FROM graphs JOIN membership USING (key) "
-                f"WHERE family = ? AND {flag} = 1",
-                (family,),
+                f"WHERE {where} AND {flag} = 1",
+                names,
             ).fetchone()["c"]
             if total:
                 print(f"   {flag:<20} none -- all {total} members have a 2-kernel")
@@ -561,21 +464,22 @@ def q_classes(conn: sqlite3.Connection, family: str = "atlas7") -> None:
 def q_forcing(conn: sqlite3.Connection, family: str = "atlas7") -> None:
     """E2: does 'forcing did not report CONFLICT' coincide with has_2kernel?"""
     print(f"-- E2 over family {family}")
+    where, names = _family_filter(family)
     sql = """SELECT COUNT(*) AS members, SUM(1 - forcing_agrees) AS disagreements
              FROM graphs JOIN membership USING (key)
-             WHERE family = ? AND {flag} = 1"""
+             WHERE FAMILYFILTER AND {flag} = 1""".replace("FAMILYFILTER", where)
     print(f"-- SQL (one per class): {' '.join(sql.split())}")
     small = """SELECT key, n, m, forcing_verdict, has_2kernel
                FROM graphs JOIN membership USING (key)
-               WHERE family = ? AND {flag} = 1 AND forcing_agrees = 0
-               ORDER BY n, m, key LIMIT 1"""
+               WHERE FAMILYFILTER AND {flag} = 1 AND forcing_agrees = 0
+               ORDER BY n, m, key LIMIT 1""".replace("FAMILYFILTER", where)
     print(f"   {'class':<20} {'members':>8} {'disagree':>9}  smallest disagreement")
     print(f"   {'-' * 20} {'-' * 8} {'-' * 9}  {'-' * 40}")
     for flag in FLAG_COLUMNS:
-        row = conn.execute(sql.format(flag=flag), (family,)).fetchone()
+        row = conn.execute(sql.format(flag=flag), names).fetchone()
         if not row["members"]:
             continue
-        worst = conn.execute(small.format(flag=flag), (family,)).fetchone()
+        worst = conn.execute(small.format(flag=flag), names).fetchone()
         detail = (
             f"{worst['key']} (n={worst['n']}, m={worst['m']}, "
             f"{worst['forcing_verdict']}, has_2kernel={worst['has_2kernel']})"
@@ -594,7 +498,7 @@ def q_digraphs(conn: sqlite3.Connection, family: str | None = None) -> None:
         """SELECT family, n, COUNT(*) AS digraphs, SUM(has_2kernel) AS with_2kernel,
                   SUM(1 - forcing_agrees) AS forcing_disagreements
            FROM graphs JOIN membership USING (key)
-           WHERE family IN ('oriented6', 'digraphs5', 'digraphs6sample')
+           WHERE family IN ('oriented6', 'digraphs5', 'digraphs6')
            GROUP BY family, n ORDER BY family, n""",
     )
     print()
@@ -603,7 +507,7 @@ def q_digraphs(conn: sqlite3.Connection, family: str | None = None) -> None:
         """SELECT family, strong, all_cycles_even, COUNT(*) AS digraphs,
                   SUM(has_2kernel) AS with_2kernel
            FROM graphs JOIN membership USING (key)
-           WHERE family IN ('oriented6', 'digraphs5', 'digraphs6sample')
+           WHERE family IN ('oriented6', 'digraphs5', 'digraphs6')
            GROUP BY family, strong, all_cycles_even
            ORDER BY family, strong, all_cycles_even""",
     )

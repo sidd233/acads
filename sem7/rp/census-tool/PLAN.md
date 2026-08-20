@@ -23,18 +23,22 @@ exponential-but-fast on small instances, not a polynomial exact algorithm.
 * Python **3.14.6** (newest on this machine; the brief's "3.12" was an oversight).
 * venv in `env/`, per the `dl-lab/setup.fish` convention; `env/` is gitignored.
 * Deps: `networkx` 3.6.1, `pytest`. No solver dependency on the reference path.
-* `pynauty` **not available**: its C extension needs `Python.h` (`python3.14-devel` is not
-  installed) and no `nauty` CLI (`geng`/`directg`) is on `PATH`. Fallback, recorded in
-  FINDINGS.md: `nx.graph_atlas_g()` (exhaustive to n = 7), *structured* exhaustive
-  enumeration for the families where a direct encoding exists (all orientations of atlas
-  graphs; split graphs by clique-side neighbourhood multisets; DAGs by upper-triangular
-  arc sets), and seeded random sampling beyond that.
+* `pynauty` 2.8.8.1 **is** available (once `python3.14-devel` was installed). It supplies
+  canonical labellings and certificates at any size, for digraphs as well as graphs. It
+  does *not* ship `geng`, so exhaustive generation past the atlas is done by **canonical
+  augmentation** — extend every graph on `n-1` vertices by one vertex in all `2^(n-1)`
+  ways and dedup by certificate — which reproduces the known counts and reaches `n = 9`.
+* The built-in canonical form (1-WL refinement, then minimise the adjacency bit vector
+  over colour-preserving relabellings) is kept as a fallback for environments without
+  pynauty, capped at `n <= 7`. The tests check the two backends induce the same
+  isomorphism classes, and the exhaustive families give identical class counts under both.
 
 ## Modules
 
 | file | contents |
 |---|---|
 | `twokernel/core.py` | bitmask `Digraph`, `is_2kernel` verifier, Bron–Kerbosch MIS, reference solver, `forced_set`, `forcing_closure` (R0–R4), `solve_dpll` |
+| `twokernel/canon.py` | graph6/digraph6 codec, canonical labelling (pynauty, with a self-contained fallback) |
 | `twokernel/classes.py` | boolean recognizers, undirected + digraph flags |
 | `twokernel/generators.py` | atlas, named families, seeded random families |
 | `twokernel/census.py` | sqlite3 store keyed by graph6/digraph6, CLI `run`/`query` |
