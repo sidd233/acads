@@ -1,0 +1,10 @@
+[project]
+name = "twokernel"
+version = "0.1.0"
+description = "Census tooling for 2-kernels ((2-d)-kernels) in graphs and digraphs"
+requires-python = ">=3.12"
+dependencies = ["networkx>=3.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
