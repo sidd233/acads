@@ -232,6 +232,15 @@ class Digraph:
         G.add_edges_from(self.arcs())
         return G
 
+    def to_digraph(self):
+        """``nx.DiGraph`` copy, always directed even when the digraph is symmetric."""
+        import networkx as nx
+
+        G = nx.DiGraph()
+        G.add_nodes_from(range(self.n))
+        G.add_edges_from(self.arcs())
+        return G
+
     def underlying_networkx(self):
         """``nx.Graph`` of the underlying graph."""
         import networkx as nx
