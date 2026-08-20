@@ -186,6 +186,53 @@ wrong. That is as it should be — both verdicts carry proofs, `CONFLICT` of non
 
 At `n ≤ 7` these looked like empirical regularities worth conjecturing. They are theorems.
 
+#### Related work
+
+A 2-kernel is a `(σ, ρ)`-dominating set in the sense of Telle, *Complexity of domination-type
+problems in graphs*, Nordic J. Comput. **1** (1994) 157–171: `σ = {0}` (independence — a
+selected vertex has 0 selected neighbours) and `ρ = {2, 3, 4, …}` (2-domination — an
+unselected vertex has at least 2). In Telle's own notation, a 2-kernel is a `[ρ≥2, σ0]`-set.
+That paper turns out to already contain a direct hit: its **Theorem 1** proves
+`∃[ρ≥q, σ0]` — existence of a `[ρ≥q, σ0]`-set — is NP-complete on general graphs for every
+`q ∈ {2, 3, …}`, by reduction from Exact 3-Cover, and `q = 2` is precisely 2-kernel
+existence. So the NP-completeness of 2-KERNEL on general graphs was proved in 1994, 21 years
+before Bednarz, Hernández-Cruz and Włoch, *Ars Combin.* **121** (2015) 341–351, which
+is the paper this project has been citing for it; the two lines of work appear not to have
+been aware of each other.
+
+Golovach and Kratochvíl, *Computational Complexity of Generalized Domination: A Complete
+Dichotomy for Chordal Graphs*, WG 2007, LNCS 4769, 1–11, prove a complete dichotomy for
+`(σ, ρ)`-set existence restricted to chordal graphs: polynomial exactly when every chordal
+graph has at most one `(σ, ρ)`-set, NP-complete otherwise — the same uniqueness phenomenon
+Theorem E2.1 observes, and their term for the graphs that always have at most one such set is
+*ambivalent*. A companion paper, Golovach and Kratochvíl, *Generalized Domination in
+Degenerate Graphs: A Complete Dichotomy of Computational Complexity*, TAMC 2008, LNCS 4978,
+182–191, gives the analogous dichotomy for `k`-degenerate graphs, which is what E7 below
+tests. Both dichotomy statements were confirmed here only at the level of their published
+abstracts (the full papers are paywalled); the abstracts state the polynomial/NP-complete
+criterion in exactly the form above but do not, at that level, spell out the finite-or-cofinite
+scope of `σ, ρ` the dichotomy covers.
+
+That scope matters for whether Theorem E2.1 is a corollary of theirs. Contrast: interval
+graphs have mim-width 1 (Belmonte & Vatshelle, *A width parameter useful for chordal and
+co-comparability graphs*, Discrete Appl. Math., 2018), and Bui-Xuan, Telle and Vatshelle's
+meta-algorithm decides `(σ, ρ)`-set existence in polynomial time on any graph class of
+boundedly computable mim-width, for `σ, ρ` finite *or* cofinite (our `ρ = ℤ≥2` is what that
+line of work calls *simple cofinite*) — so the interval-graph case of E2.1 is very likely
+already subsumed by existing width-based algorithms, not a new result. Chordal graphs, by
+contrast, have unbounded mim-width (inherited from strongly chordal split graphs), so no such
+width argument applies to them, which is exactly why the chordal case is the one worth a
+separate proof. Whether the Golovach–Kratochvíl chordal dichotomy itself extends to cofinite
+`ρ`, and so already implies Theorem E2.1, could not be settled from the abstract alone.
+**Gap, stated explicitly: without access to the full text, Theorem E2.1 is presented here as
+an independently found and proved result, not claimed as a corollary of the
+Golovach–Kratochvíl dichotomy.**
+
+TODO: read Kratochvíl, Manuel, Miller, *Generalized domination in chordal graphs*, Nordic J.
+Comput. **2** (1995) 41–50 — an earlier paper by (in part) the same first author, specifically
+about chordal graphs, that this project has not been able to access and that may already
+contain Theorem E2.1 or something close to it.
+
 **Theorem E2.1. On a chordal graph the forcing closure always decides, so a chordal graph
 has at most one 2-kernel and 2-KERNEL is solvable in polynomial time on chordal graphs.**
 
