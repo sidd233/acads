@@ -182,3 +182,66 @@ def test_dpll_agrees_with_the_reference_solver() -> None:
         if S is not None:
             assert is_2kernel(D, S)
             assert S in all_2kernels(D)
+
+
+# --------------------------------------------------------------------------------------
+# completeness of the forcing closure on the classes where it is provably complete
+# --------------------------------------------------------------------------------------
+
+
+def test_forcing_decides_every_chordal_graph() -> None:
+    """Theorem E2.1: on a chordal graph the closure never stalls.
+
+    ``G[UNKNOWN]`` is an induced subgraph of a chordal graph, hence chordal, so while it is
+    non-empty it has a simplicial vertex, whose non-OUT neighbourhood is a clique -- and
+    R4 fires on it.  So no vertex is left UNKNOWN, and the 2-kernel is unique when it
+    exists.  Checked here over the atlas; the census checks all 17175 chordal graphs on at
+    most 9 vertices.
+    """
+    import networkx as nx
+
+    checked = 0
+    for D in gen.atlas_graphs(min_n=1):
+        if not nx.is_chordal(D.underlying_networkx()):
+            continue
+        checked += 1
+        _status, verdict = forcing_closure(D)
+        assert verdict is not Verdict.UNDECIDED, "the closure stalled on a chordal graph"
+        assert len(all_2kernels(D)) <= 1, "a chordal graph has at most one 2-kernel"
+    assert checked > 500, f"only {checked} chordal graphs exercised the theorem"
+
+
+def test_forcing_decides_every_simplicial_graph_with_r0_and_r1_alone() -> None:
+    """Theorem E2.2: every simplicial vertex is forced IN by R0, and every other vertex
+    lies in some ``N[x]`` and so is put OUT by R1.  Nothing is left UNKNOWN."""
+    from twokernel import classes as cls
+
+    checked = 0
+    for D in gen.atlas_graphs(min_n=1):
+        if not cls.is_simplicial_graph(D):
+            continue
+        checked += 1
+        _status, verdict = forcing_closure(D)
+        assert verdict is not Verdict.UNDECIDED
+        assert len(all_2kernels(D)) <= 1
+    assert checked > 400, f"only {checked} simplicial graphs exercised the theorem"
+
+
+def test_bipartite_forcing_completeness_is_false() -> None:
+    """The conjecture that forcing decides bipartite graphs held for every bipartite graph
+    on at most 7 vertices and is false at 8.  This is the smallest counterexample."""
+    import networkx as nx
+
+    from twokernel.canon import decode
+
+    D = decode("G?KsZ_")
+    G = D.underlying_networkx()
+    assert D.n == 8 and D.num_edges == 10
+    assert nx.is_bipartite(G) and nx.is_connected(G)
+    assert not has_2kernel(D), "the counterexample must have no 2-kernel"
+    _status, verdict = forcing_closure(D)
+    assert verdict is Verdict.UNDECIDED, "forcing must fail to decide it"
+    # and it does not contradict Wloch Thm 2.4: the two pendants are in different classes
+    left, right = nx.bipartite.sets(G)
+    pendants = {v for v in range(D.n) if D.degree(v) == 1}
+    assert pendants & left and pendants & right
