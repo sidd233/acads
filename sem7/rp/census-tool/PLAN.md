@@ -87,3 +87,11 @@ Recorded here so they are auditable; each is also restated where it is used.
 * **E6** DAGs are enumerated as upper-triangular arc sets over a fixed vertex order, which
   covers every isomorphism class; exhaustive while the count is tractable, seeded sample
   above that. Exact ranges reported.
+
+## Status
+
+All five stages are done and all 101 tests pass. Results, the exact queries behind them,
+and the three statements that turned out to be provable (the oriented-graph bound `n ≥ 8`,
+uniqueness of DAG 2-kernels, and the subdivision family) are in `FINDINGS.md`. No
+published expected value disagreed with the implementation, so `FINDINGS.md` records no
+counterexample to any cited theorem.
