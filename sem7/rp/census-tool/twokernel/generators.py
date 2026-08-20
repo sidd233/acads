@@ -48,6 +48,10 @@ __all__ = [
     "orientation_out_of",
     "random_strong_even_digraph",
     "all_split_graphs",
+    "all_digraphs_min_outdeg",
+    "all_dags_min_outdeg",
+    "random_digraph_min_outdeg",
+    "random_dag_min_outdeg",
 ]
 
 
@@ -455,3 +459,99 @@ def all_split_graphs(
                 edges.extend((c, k + j) for c in bits(nbhd))
             C = (1 << k) - 1
             yield Digraph.from_edges(n, edges), C, ((1 << n) - 1) & ~C
+
+
+def all_digraphs_min_outdeg(n: int, k: int) -> Iterator[Digraph]:
+    """Every labelled digraph on ``n`` vertices with ``delta+ >= k``.
+
+    Enumerated by choosing each out-neighbourhood directly, so the out-degree constraint
+    costs nothing: only subsets of size at least ``k`` are ever built.  Exhaustive, but the
+    count grows as ``(2^(n-1) - small)^n``, which is why the census stops at ``n = 5``.
+    """
+    choices = [
+        [
+            sum(1 << w for w in combo)
+            for size in range(k, n)
+            for combo in itertools.combinations(
+                [w for w in range(n) if w != v], size
+            )
+        ]
+        for v in range(n)
+    ]
+    for out in itertools.product(*choices):
+        inn = [0] * n
+        for v, mask in enumerate(out):
+            for w in bits(mask):
+                inn[w] |= 1 << v
+        yield Digraph(n, list(out), inn)
+
+
+def all_dags_min_outdeg(n: int, k: int = 2) -> Iterator[Digraph]:
+    """Every DAG on ``n`` vertices in which each vertex is a sink or has ``d+ >= k``.
+
+    Arcs run from lower to higher index, which is a topological order, so this covers every
+    DAG up to isomorphism.  Sinks are exempt because a DAG always has one and it can never
+    have out-arcs; note that all sinks are pairwise non-adjacent, and every sink is forced
+    into every 2-kernel.
+    """
+    choices = [
+        [0]
+        + [
+            sum(1 << w for w in combo)
+            for size in range(k, n - v)
+            for combo in itertools.combinations(range(v + 1, n), size)
+        ]
+        for v in range(n)
+    ]
+    for out in itertools.product(*choices):
+        inn = [0] * n
+        for v, mask in enumerate(out):
+            for w in bits(mask):
+                inn[w] |= 1 << v
+        yield Digraph(n, list(out), inn)
+
+
+def random_digraph_min_outdeg(n: int, k: int, seed: int, p: float = 0.35) -> Digraph:
+    """A random digraph on ``n`` vertices with ``delta+ >= k``.
+
+    Each arc is drawn independently with probability ``p``; a vertex short of ``k``
+    out-arcs is then topped up with uniformly chosen extra targets.
+    """
+    rng = random.Random(seed)
+    out = [0] * n
+    for v in range(n):
+        for w in range(n):
+            if v != w and rng.random() < p:
+                out[v] |= 1 << w
+        others = [w for w in range(n) if w != v]
+        while popcount(out[v]) < k:
+            out[v] |= 1 << rng.choice(others)
+    inn = [0] * n
+    for v in range(n):
+        for w in bits(out[v]):
+            inn[w] |= 1 << v
+    return Digraph(n, out, inn)
+
+
+def random_dag_min_outdeg(
+    n: int, k: int, seed: int, sink_prob: float = 0.25
+) -> Digraph:
+    """A random DAG in which every vertex is a sink or has out-degree at least ``k``.
+
+    Arcs run from lower to higher index.  Each vertex is made a sink with probability
+    ``sink_prob`` (always, if fewer than ``k`` later vertices exist), otherwise it gets a
+    uniformly random subset of the later vertices of size at least ``k``.
+    """
+    rng = random.Random(seed)
+    out = [0] * n
+    for v in range(n):
+        later = list(range(v + 1, n))
+        if len(later) < k or rng.random() < sink_prob:
+            continue
+        size = rng.randint(k, len(later))
+        out[v] = sum(1 << w for w in rng.sample(later, size))
+    inn = [0] * n
+    for v in range(n):
+        for w in bits(out[v]):
+            inn[w] |= 1 << v
+    return Digraph(n, out, inn)
