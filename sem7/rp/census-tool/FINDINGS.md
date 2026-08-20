@@ -44,7 +44,7 @@ Reproduce with:
 
 ```
 python3.14 -m venv env && ./env/bin/pip install networkx pytest pynauty
-./env/bin/python -m pytest -q                                   # 114 tests
+./env/bin/python -m pytest -q                                   # 115 tests
 ./env/bin/python -m twokernel.census run --family atlas7 --family graphs8 \
     --family graphs9 --family named --family oriented6 --family digraphs5 \
     --family digraphs6 --family dags7 --family dags8sample --family cubic \
@@ -65,7 +65,7 @@ Every canned query prints the exact SQL it runs before its output.
 
 ## 1. Ground truth
 
-All 114 tests pass. No expected value was edited and no disagreement with a published
+All 115 tests pass. No expected value was edited and no disagreement with a published
 theorem was found, so there is nothing to report here beyond the values the brief asked to
 have recorded.
 
@@ -342,6 +342,26 @@ The bound is tight. With `J = {0,1,2,3}`, `B = {4,5,6,7}`, arcs `b_i → x_i, x_
 is an oriented graph with `δ⁺ = 2` whose 2-kernels are exactly `{0,1,2,3}` and
 `{4,5,6,7}`. Both the theorem and the example are covered by tests. This fully explains the
 zeros in the `oriented6` rows: they are not a small-sample artefact, they are forced.
+
+**How many such examples are there, up to isomorphism? Two, not one — the example above is
+not the only extremal shape.** The proof pins `j = t = 4` and forces equality throughout:
+`d_x = t - 2 = 2` for every `x ∈ J` (every kernel vertex is pointed at by exactly 2 outside
+vertices), and dually every outside vertex must send exactly 2 arcs into `J` to meet
+2-domination at all. So the whole construction reduces to one free choice — which 2 of the 4
+kernel vertices each outside vertex points to — subject to every kernel vertex ending up
+pointed at by exactly 2 outside vertices; the kernel-to-outside arcs are then forced (each
+`x` points at exactly the 2 outside vertices that do not point at it). Exhaustive search over
+all `6⁴ = 1296` labelled choices keeps exactly **90** that satisfy the balance condition,
+and pynauty certificates split those 90 into exactly **2** isomorphism classes (of sizes 72
+and 18). In both, the underlying graph is `K_{4,4}` on `J ∪ B` — every kernel vertex turns
+out to be adjacent to *all four* outside vertices, not just the two it exchanges arcs with
+directly, so both are balanced orientations of `K_{4,4}` (out-degree 2, in-degree 2 at every
+vertex), differing only in orientation. They are distinguished by the pattern of the four
+outside vertices' target-pairs: in the 72-instance class — the one already in the tests —
+the four target-pairs are the four distinct "consecutive" 2-subsets `{0,1},{1,2},{2,3},{3,0}`
+of a cyclic order on `J`; in the 18-instance class the four outside vertices split into two
+pairs sharing a target-pair, e.g. `{0,1},{0,1},{2,3},{2,3}`. Both classes were verified to be
+genuine 2-kernel pairs (`is_2kernel` on both `J` and `B`) and are pinned down by a test.
 
 **Theorems B and C, seen in the census.** Restricting to `δ⁺ ≥ 2`, which holds by
 construction in these families:

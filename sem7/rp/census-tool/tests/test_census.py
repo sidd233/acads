@@ -267,3 +267,68 @@ def test_e3_extremal_oriented_graph_on_eight_vertices() -> None:
     assert not any(D.out[v] & D.inn[v] for v in range(8)), "must have no digons"
     assert is_2kernel(D, 0b00001111)
     assert len(all_2kernels(D)) == 2
+
+
+def _extremal_j4t4_constructions():
+    """Every labelled instance of the j=4, t=4 extremal shape: each of 4 outside
+    vertices chooses 2 of 4 kernel vertices to point at, kept only when every kernel
+    vertex ends up pointed at by exactly 2 outside vertices (the balance the proof's
+    equalities force); the kernel-to-outside arcs are then forced -- each kernel vertex
+    points at exactly the 2 outside vertices that do not point at it."""
+    for choice in itertools.product(itertools.combinations(range(4), 2), repeat=4):
+        pointers = [0, 0, 0, 0]
+        for sub in choice:
+            for j in sub:
+                pointers[j] += 1
+        if pointers != [2, 2, 2, 2]:
+            continue
+        points_at = [set() for _ in range(4)]
+        for i, sub in enumerate(choice):
+            for j in sub:
+                points_at[j].add(i)
+        arcs = [(4 + i, j) for i, sub in enumerate(choice) for j in sub]
+        for j in range(4):
+            arcs += [(j, 4 + i) for i in range(4) if i not in points_at[j]]
+        yield choice, Digraph.from_arcs(8, arcs)
+
+
+def test_e3_extremal_shape_has_exactly_two_isomorphism_classes() -> None:
+    """The j=4, t=4 extremal shape from the tightness proof: exhaustively enumerating
+    every way to balance the outside vertices' choices gives 90 labelled instances,
+    every one a genuine (J, B) 2-kernel pair, splitting into exactly 2 isomorphism
+    classes (sizes 72 and 18) -- so the example already covered by
+    test_e3_extremal_oriented_graph_on_eight_vertices is not the only one."""
+    Jmask, Bmask = 0b00001111, 0b11110000
+    classes: dict[object, list] = {}
+    for choice, D in _extremal_j4t4_constructions():
+        assert D.min_outdeg == 2
+        assert not any(D.out[v] & D.inn[v] for v in range(8)), "must have no digons"
+        assert is_2kernel(D, Jmask) and is_2kernel(D, Bmask)
+        assert len(all_2kernels(D)) == 2
+        classes.setdefault(canon.certificate(D), []).append((choice, D))
+
+    total = sum(len(v) for v in classes.values())
+    assert total == 90
+    assert len(classes) == 2
+    assert sorted(len(v) for v in classes.values()) == [18, 72]
+
+    # the digraph from the other test must appear among these 90, in the size-72 class
+    arcs = []
+    for i in range(4):
+        arcs += [(4 + i, i), (4 + i, (i + 1) % 4)]
+    for j in range(4):
+        pointing_at_j = {(j - 1) % 4, j}
+        arcs += [(j, 4 + b) for b in range(4) if b not in pointing_at_j]
+    other_test_D = Digraph.from_arcs(8, arcs)
+    other_cert = canon.certificate(other_test_D)
+    assert other_cert in classes
+    assert len(classes[other_cert]) == 72
+
+    # every instance has underlying graph K_{4,4} on J vs B
+    for _choice, D in itertools.chain.from_iterable(classes.values()):
+        U = D.underlying_networkx()
+        assert sorted(dict(U.degree()).values()) == [4] * 8
+        assert all(not (U.has_edge(u, v)) for u, v in itertools.combinations(range(4), 2))
+        assert all(
+            not (U.has_edge(u, v)) for u, v in itertools.combinations(range(4, 8), 2)
+        )
