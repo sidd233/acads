@@ -279,3 +279,71 @@ def test_forcing_completeness_fails_at_degeneracy_two() -> None:
     _status, verdict = forcing_closure(C5)
     assert verdict is Verdict.UNDECIDED
     assert cls.simplicial_vertices(C5) == 0, "C5 must have no simplicial vertex"
+
+
+def test_forcing_decides_every_digraph_with_chordal_underlying_graph() -> None:
+    """Theorem E8: the chordal completeness proof (E2.1) needs no change for digraphs.
+
+    N+(v) is a subset of N(v), and a subset of a clique is a clique, so a vertex
+    simplicial in the underlying graph fires R0/R4 exactly as it does in the undirected
+    case -- there is no digraph-specific gap.  Checked here on random digraphs (any
+    out-degree, digons allowed) whose underlying graph is chordal; the census checks all
+    251991 digraphs on at most 6 vertices with out-degree >= 2 exhaustively.
+    """
+    import random
+
+    import networkx as nx
+
+    rng = random.Random(4)
+    checked = 0
+    for _ in range(400):
+        n = rng.randint(1, 9)
+        G = gen.random_chordal(n, seed=rng.randint(0, 10**9), p=rng.random())
+        edges = [(u, v) for u in range(n) for v in range(u + 1, n) if G.adj[u] & (1 << v)]
+        if not edges:
+            continue
+        arcs: list[tuple[int, int]] = []
+        for u, v in edges:
+            r = rng.random()
+            if r < 0.34:
+                arcs.append((u, v))
+            elif r < 0.67:
+                arcs.append((v, u))
+            else:
+                arcs += [(u, v), (v, u)]
+        D = Digraph.from_arcs(n, arcs)
+        assert nx.is_chordal(D.underlying_networkx())
+        checked += 1
+        _status, verdict = forcing_closure(D)
+        assert verdict is not Verdict.UNDECIDED, "the closure stalled on a chordal digraph"
+        assert len(all_2kernels(D)) <= 1
+    assert checked > 200, f"only {checked} chordal digraphs exercised the theorem"
+
+
+def test_every_simplicial_vertex_fires_r0_in_digraphs() -> None:
+    """The step Theorem E8 leans on: N+(v) is a subset of N(v), so v simplicial in the
+    underlying graph (N(v) has no independent pair) forces N+(v) to have no independent
+    pair either, and R0 fires.  Simpliciality is a *stronger* condition than R0's test,
+    not weaker, so no simplicial vertex can be missed."""
+    import random
+
+    from twokernel import classes as cls
+    from twokernel.core import bits
+
+    rng = random.Random(5)
+    tested = 0
+    for _ in range(3000):
+        n = rng.randint(2, 9)
+        arcs = [
+            (u, v) for u in range(n) for v in range(n) if u != v and rng.random() < 0.3
+        ]
+        if not arcs:
+            continue
+        D = Digraph.from_arcs(n, arcs)
+        simp = cls.simplicial_vertices(D)
+        if not simp:
+            continue
+        tested += 1
+        forced = forced_set(D)
+        assert simp & ~forced == 0, "a simplicial vertex failed to fire R0"
+    assert tested > 500, f"only {tested} digraphs had a simplicial vertex"

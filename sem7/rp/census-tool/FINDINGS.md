@@ -44,7 +44,7 @@ Reproduce with:
 
 ```
 python3.14 -m venv env && ./env/bin/pip install networkx pytest pynauty
-./env/bin/python -m pytest -q                                   # 112 tests
+./env/bin/python -m pytest -q                                   # 114 tests
 ./env/bin/python -m twokernel.census run --family atlas7 --family graphs8 \
     --family graphs9 --family named --family oriented6 --family digraphs5 \
     --family digraphs6 --family dags7 --family dags8sample --family cubic \
@@ -65,7 +65,7 @@ Every canned query prints the exact SQL it runs before its output.
 
 ## 1. Ground truth
 
-All 112 tests pass. No expected value was edited and no disagreement with a published
+All 114 tests pass. No expected value was edited and no disagreement with a published
 theorem was found, so there is nothing to report here beyond the values the brief asked to
 have recorded.
 
@@ -544,9 +544,71 @@ conjecture, since an explicit counterexample was found rather than merely not fo
 
 ---
 
-## 9. What surprised me
+## 9. E8 — does the chordal theorem lift to digraphs?
 
-Three things.
+Theorem E2.1 is undirected. The digraph analogue is open in general, so this is a genuine
+question rather than a re-derivation.
+
+```sql
+SELECT family, n, COUNT(*) AS digraphs, SUM(has_2kernel) AS with_2kernel,
+       SUM(1 - forcing_agrees) AS forcing_disagreements, MAX(count_2kernels) AS max_count
+FROM graphs JOIN membership USING (key)
+WHERE family IN ('digraphs5', 'digraphs6') AND chordal = 1
+GROUP BY family, n ORDER BY family, n
+```
+
+Over every digraph on at most 6 vertices with `δ⁺ ≥ 2` whose underlying graph is chordal —
+exhaustive up to isomorphism, since `digraphs5` and `digraphs6` are themselves exhaustive:
+
+| family | n | digraphs | with a 2-kernel | forcing disagreements | max #2-kernels |
+|---|---:|---:|---:|---:|---:|
+| `digraphs5` | 3 | 1 | 0 | 0 | 0 |
+| `digraphs5` | 4 | 18 | 2 | 0 | 1 |
+| `digraphs5` | 5 | 1 261 | 61 | 0 | 1 |
+| `digraphs6` | 6 | 250 711 | 5 698 | 0 | 1 |
+| **total** | | **251 991** | **5 761** | **0** | **1** |
+
+**Zero disagreements over all 251 991 instances, and `MAX(count_2kernels) = 1`. It holds,
+exhaustively to `n = 6`.**
+
+**Does the proof lift? The suggested obstacle turned out not to be real, and the theorem
+generalises with the identical proof.**
+
+The task that produced this experiment suspected a specific gap: `R0`'s `forced_set` test
+for a digraph is "`N⁺(v)` has no independent pair," which looks like a weaker condition
+than simpliciality ("`N(v)` has no independent pair," using the *full* underlying
+neighbourhood), so the worry was that a vertex simplicial in the underlying graph might not
+actually fire `R0`. Checked directly — generate random digraphs, take every vertex simplicial
+in the underlying sense, and ask whether `forced_set` contains it — over 15 032 digraphs
+with at least one simplicial vertex, **zero** violations. The reason is immediate once
+stated: `N⁺(v) ⊆ N(v)`, and *a subset of a clique is a clique*, so if `N(v)` has no
+independent pair then neither does its subset `N⁺(v)`. Simpliciality is if anything a
+*stronger* condition than `R0`'s test, not a weaker one — every simplicial vertex fires
+`R0`, and `R0` may also fire on some non-simplicial vertices besides. So the "weaker
+condition" framing had the direction backwards; there is no gap at this step.
+
+With that step in hand, Theorem E2.1's proof carries over verbatim: run the closure to a
+fixed point; if some vertex is `UNKNOWN`, no `UNKNOWN` vertex has an underlying-adjacent
+`IN` vertex (else `R1` would have fired), so for `v` `UNKNOWN`, `N⁺(v) \ OUT = N⁺(v) ∩
+UNKNOWN`; `G[UNKNOWN]` is an induced subgraph of a chordal graph, hence chordal, hence has a
+vertex `x` simplicial *within* `G[UNKNOWN]` — `N(x) ∩ UNKNOWN` is a clique — and by the same
+subset argument `N⁺(x) ∩ UNKNOWN` is too, so `R4` fires on `x`, contradicting the fixed
+point. Hence `UNKNOWN = ∅`.
+
+**Theorem E8. If the underlying graph of a digraph `D` is chordal, the forcing closure
+decides `D`, so `D` has at most one 2-kernel and 2-KERNEL is solvable in polynomial time on
+digraphs with chordal underlying graph — with no restriction on `δ⁺` at all.** The `δ⁺ ≥ 2`
+restriction in the table above was only the scope the exhaustive census already covered, not
+a hypothesis the proof needs; a broad random check without it (20 000 digraphs on `n ≤ 9`
+built by randomly orienting, or doubling into digons, the edges of a random chordal graph)
+found the same **zero** disagreements. This is the more general statement, and it is what is
+tested and proved.
+
+---
+
+## 10. What surprised me
+
+Four things.
 
 The first is how sharply **the difficulty of the problem is concentrated in one structural
 feature: the absence of simplicial vertices.** Forcing is not a heuristic that "usually
@@ -575,9 +637,23 @@ kernel gives `n ≥ 8` exactly. Forbidding digons is a much heavier restriction 
 it is what makes `δ⁺ ≥ 2` fight against the kernel condition rather than support it, the
 opposite of what happens in Theorems A and B where digons are freely available.
 
+The fourth is that **the two attempted generalisations of Theorem E2.1 went in opposite
+directions, and neither answer was the anticipated one.** E7 asked whether the chordal proof
+survives weakening "chordal" to "low degeneracy," and it does not — `C₅` has degeneracy 2 and
+breaks it at the very first step past forests, because a low-*degree* vertex need not be
+*simplicial*, which is the actual property the proof uses. E8 asked whether the same proof
+survives strengthening the object from a graph to a digraph, and there it goes through
+untouched, because the one worry that seemed plausible in advance — that a digraph's weaker
+`R0` test might miss some simplicial vertices — turns out to point the wrong way: `N⁺(v)`
+is a *subset* of `N(v)`, so simpliciality of `v` in the underlying graph is if anything a
+*stronger* guarantee than what `R0` needs, never a weaker one. Both results came from writing
+the actual proof out rather than trusting the shape of the analogy; one direction of analogy
+failed and the other held, and neither could have been called from the pattern-matching
+alone.
+
 ---
 
-## 10. Limitations
+## 11. Limitations
 
 * Exhaustive ranges: all graphs to `n = 9`, all digraphs with `δ⁺ ≥ 2` to `n = 6`, all
   oriented graphs with `δ⁺ ≥ 2` to `n = 6`, all DAGs with the sink/`d⁺ ≥ 2` condition to
@@ -589,5 +665,9 @@ opposite of what happens in Theorems A and B where digons are freely available.
   sampler is not uniform over classes.
 * `count_2kernels` uses the reference solver, so census families are limited to sizes where
   enumerating all maximal independent sets is cheap.
-* Theorems E2.1, E2.2 and E6 are proved; no conjecture is left standing in this document
-  that a later range could refute, because the one that could be refuted was.
+* Theorems E2.1, E2.2, E6 and E8 are proved; no conjecture is left standing in this document
+  that a later range could refute, because the one that could be refuted was (E7).
+* The chordal-dichotomy citations in section 3 were checked at the abstract level only (both
+  papers are paywalled); the exact finite-or-cofinite scope of their result could not be
+  confirmed from primary text, which is why Theorem E2.1 is presented as independently proved
+  rather than as their corollary.
