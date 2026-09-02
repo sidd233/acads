@@ -1,0 +1,70 @@
++ 2
+→ Simulation time: 2 seconds
+
+/NodeList/0
+→ Node ID: 0
+
+/DeviceList/0
+→ Network device ID: 0
+
+/$ns3::PointToPointNetDevice
+→ Network device type: Point-to-Point
+
+/TxQueue/Enqueue
+→ Packet is added to the transmission queue
+
+ns3::PppHeader
+→ PPP (Point-to-Point Protocol) header
+
+(Point-to-Point Protocol: IP (0x0021))
+→ Protocol carried: IPv4 (0x0021)
+
+ns3::Ipv4Header
+→ IPv4 header
+
+tos 0x0
+→ Type of Service: 0x0
+
+DSCP Default
+→ Default DSCP value
+
+ECN Not-ECT
+→ Explicit Congestion Notification: Not ECN-Capable Transport
+
+ttl 64
+→ Time To Live: 64
+
+id 0
+→ IPv4 packet identification number: 0
+
+protocol 17
+→ Transport protocol: UDP (17)
+
+offset (bytes) 0
+→ Fragment offset: 0 bytes
+
+flags [none]
+→ No IP fragmentation flags
+
+length: 1052
+→ Total IPv4 packet length: 1052 bytes
+
+10.1.1.1 > 10.1.1.2
+→ Source IP: 10.1.1.1
+→ Destination IP: 10.1.1.2
+
+ns3::UdpHeader
+→ UDP header
+
+length: 1032
+→ UDP packet length: 1032 bytes
+
+49153 > 90
+→ Source port: 49153
+→ Destination port: 90
+
+Payload
+→ Application data
+
+size=1024
+→ Payload size: 1024 bytes
