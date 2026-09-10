@@ -1,0 +1,37 @@
+\begin{tabular}{clcccc}
+\toprule
+Run & Initialization & BN & Epoch & $\|\nabla W_1\|_2$ & $\|\nabla W_5\|_2$ \\
+\midrule
+1 & Zero & No & 1 & 0.000e+00 & 0.000e+00 \\
+1 & Zero & No & 5 & 0.000e+00 & 0.000e+00 \\
+1 & Zero & No & 10 & 0.000e+00 & 0.000e+00 \\
+\midrule
+2 & Small & No & 1 & 7.876e-06 & 9.374e-06 \\
+2 & Small & No & 5 & 7.484e-06 & 9.467e-06 \\
+2 & Small & No & 10 & 8.388e-06 & 1.282e-05 \\
+\midrule
+3 & Xavier & No & 1 & 8.384e-01 & 4.403e-01 \\
+3 & Xavier & No & 5 & 7.948e-01 & 2.867e-01 \\
+3 & Xavier & No & 10 & 1.540e+00 & 3.751e-01 \\
+\midrule
+4 & He & No & 1 & 9.514e-01 & 3.905e-01 \\
+4 & He & No & 5 & 1.025e+00 & 2.835e-01 \\
+4 & He & No & 10 & 9.564e-01 & 1.873e-01 \\
+\midrule
+5 & Large & No & 1 & NaN & NaN \\
+5 & Large & No & 5 & NaN & NaN \\
+5 & Large & No & 10 & NaN & NaN \\
+\midrule
+6 & Small & Yes & 1 & 1.430e+00 & 4.751e-01 \\
+6 & Small & Yes & 5 & 6.461e-01 & 1.929e-01 \\
+6 & Small & Yes & 10 & 3.680e-01 & 8.305e-02 \\
+\midrule
+7 & He & Yes & 1 & 8.450e-01 & 1.811e-01 \\
+7 & He & Yes & 5 & 2.283e-01 & 5.158e-02 \\
+7 & He & Yes & 10 & 1.316e+00 & 2.147e-01 \\
+\midrule
+8 & Large & Yes & 1 & 3.079e-01 & 1.559e-01 \\
+8 & Large & Yes & 5 & 1.751e-01 & 9.326e-02 \\
+8 & Large & Yes & 10 & 1.608e-01 & 9.750e-02 \\
+\bottomrule
+\end{tabular}

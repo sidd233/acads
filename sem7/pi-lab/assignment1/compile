@@ -1,1 +1,0 @@
-gcc -std=c17 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wformat=2 -g game.c -o game && ./game < input.txt 2>&1 | tee output.txt
