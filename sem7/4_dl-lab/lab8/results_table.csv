@@ -1,0 +1,4 @@
+Model,Train acc (%),Val acc (%),Test acc (%),Train loss,Val loss,Gap (pts),Params,Time (s)
+Baseline,83.683,63.4,62.5,0.506,1.097,20.283,4751434,445.348
+Reduced classifier,75.833,61.2,61.95,0.703,1.133,14.633,2554314,443.925
+Reduced width,80.592,61.3,63.3,0.562,1.153,19.292,2337962,163.939
