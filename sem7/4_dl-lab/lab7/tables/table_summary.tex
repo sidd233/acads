@@ -1,0 +1,18 @@
+\begin{tabular}{lccc}
+\toprule
+Quantity & MSE & MedSE & T-MSE \\
+\midrule
+Clean test accuracy (\%) & 85.70 & 53.85 & 80.70 \\
+Label noise 10\% degradation (pp) & +0.00 & +6.70 & +4.55 \\
+Label noise 20\% degradation (pp) & -0.95 & +8.60 & +4.30 \\
+Input noise 10\% degradation (pp) & +0.00 & +10.50 & +0.05 \\
+Input noise 20\% degradation (pp) & +0.10 & +0.05 & +0.10 \\
+Epoch reaching 80\% test accuracy & 3 & NR & 5 \\
+Outlier sensitivity (\% change) & +294.25 & +0.26 & +0.45 \\
+$\|\nabla_\theta L\|_2$ at initialization & 4.21141 & 8.04524 & 4.10998 \\
+Samples driving the gradient (of 64) & 64 & 1 & 58 \\
+Test accuracy at batch 16 (\%) & 94.70 & 73.85 & 93.35 \\
+Test accuracy at batch 64 (\%) & 85.70 & 53.85 & 80.70 \\
+Test accuracy at batch 128 (\%) & 79.60 & 53.10 & 75.95 \\
+\bottomrule
+\end{tabular}

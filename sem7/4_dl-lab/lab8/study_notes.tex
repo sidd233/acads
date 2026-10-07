@@ -1,0 +1,490 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\key}[1]{\textbf{#1}}
+\newcommand{\hedge}[1]{\textcolor{gray}{\textit{#1}}}
+
+\title{Lab 8 Study Notes\\ \large Understanding the AlexNet Ablation Assignment}
+\author{Siddharth Narayan Mishra (123CS0189)}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+%------------------------------------------------------------------
+\section{The big picture}
+%------------------------------------------------------------------
+
+\subsection{What the assignment is really asking}
+
+You train three small convolutional networks on the same small slice of CIFAR-10 and compare them. The three networks differ in exactly one place each:
+
+\begin{itemize}[noitemsep]
+\item \key{Baseline}: the reference network.
+\item \key{Experiment 2}: the same network, but the fully connected (FC) head at the end is made smaller.
+\item \key{Experiment 3}: the same network, but every convolutional layer has half as many filters.
+\end{itemize}
+
+The question behind the whole assignment is: \emph{where does a CNN keep its capacity, and what does it cost to remove some of it?} Capacity means how complicated a function the network can represent. More capacity lets a model fit the training data better, but also makes it easier to memorise the training data instead of learning general patterns.
+
+\subsection{Why it is called an ablation study}
+
+An \key{ablation} removes or shrinks one component and measures what changes. It only works if \emph{nothing else changes}. That is why the assignment is so strict about fixed seeds, the same data split, the same optimizer and the same number of epochs. If two runs differed in the split as well as the architecture, you could not tell which one caused a difference in accuracy.
+
+\subsection{The four things you measure}
+
+\begin{enumerate}[noitemsep]
+\item \key{Accuracy}: fraction of images classified correctly.
+\item \key{Loss}: cross-entropy, a smoother measure of how confident and correct the predictions are.
+\item \key{Model complexity}: the number of trainable parameters.
+\item \key{Computational cost}: wall-clock training time (and, in theory, the number of arithmetic operations).
+\end{enumerate}
+
+Notice that complexity and computational cost are \emph{different things}. Section~\ref{sec:params} shows this is the main lesson of the assignment.
+
+%------------------------------------------------------------------
+\section{Background you need}
+%------------------------------------------------------------------
+
+\subsection{The dataset and the three splits}
+
+CIFAR-10 has 60\,000 small colour images (32$\times$32) in 10 classes: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck. The assignment uses a small subset:
+
+\begin{center}
+\begin{tabular}{lrl}
+\toprule
+Split & Size & Drawn from \\
+\midrule
+Training & 12\,000 & original training set \\
+Validation & 2\,000 & original training set (no overlap with training) \\
+Test & 2\,000 & original test set \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each split has a distinct job:
+
+\begin{itemize}[noitemsep]
+\item \key{Training set}: the network's weights are updated using it.
+\item \key{Validation set}: used to \emph{compare models and make decisions} (which is better, has it converged, is it overfitting). It is never trained on.
+\item \key{Test set}: touched once, at the very end, to report an honest final number. If you used it to pick a model, it would no longer be an unbiased estimate, because you would have effectively tuned on it. This is why the assignment repeats that the test set must not be used for selection.
+\end{itemize}
+
+Random chance on 10 balanced classes is 10\% accuracy, and the untrained network's loss should start near $\ln 10 \approx 2.303$. Both are useful sanity checks when you look at your first epoch.
+
+\subsection{Why so much is fixed}
+
+\begin{itemize}[noitemsep]
+\item \key{Seed 42 for the split}: all three models are trained and validated on exactly the same images.
+\item \key{Seed reset before building each model}: the initial random weights come from the same random stream, so no model gets a luckier starting point through the random number generator.
+\item \key{Fixed generator for shuffling}: every model sees the mini-batches in the same order.
+\item \key{No tuning per model}: if you tuned the learning rate for one model but not the others, a difference in results would partly reflect your tuning effort rather than the architecture.
+\end{itemize}
+
+An honest caveat to mention in the analysis: this is still \emph{one run per model}. Different weights initialisation for a different seed would give slightly different numbers. With only 2\,000 validation images, one image is worth 0.05 percentage points, and the random sampling error on an accuracy near 70\% is about
+\[
+\sqrt{\frac{0.7\times 0.3}{2000}} \approx 1.0 \text{ percentage point.}
+\]
+So differences smaller than about 1 to 2 points between models should \emph{not} be described as real improvements.
+
+\subsection{Preprocessing}
+
+\begin{itemize}[noitemsep]
+\item \key{Resize to 64$\times$64}: the original images are 32$\times$32. Upscaling does not add information, but it gives the network bigger feature maps to work with. It also makes the arithmetic cost of the convolutions four times larger.
+\item \key{Normalisation}: each colour channel has the dataset mean subtracted and is divided by the standard deviation, $x' = (x-\mu)/\sigma$. This centres the inputs around zero with roughly unit spread. Raw pixels are all positive, which makes the gradients of a neuron's weights tend to share one sign and the updates zig-zag; centred inputs avoid that. It also puts the three colour channels on the same scale and matches the input scale that PyTorch's default initialisation assumes. The effect is faster, more stable training, not a change in what the network can represent.
+\item \key{No augmentation}: data augmentation means creating extra, slightly altered training images on the fly (random horizontal flips, random crops, small rotations, colour jitter). The label stays the same, but the network sees a different version each epoch, so it is much harder to memorise. It is a strong regulariser (see below). Removing it makes overfitting easier to see, which is what this assignment wants to study.
+\end{itemize}
+
+\subsection{Training vocabulary}
+
+\begin{itemize}[noitemsep]
+\item \key{Epoch}: one full pass over the 12\,000 training images.
+\item \key{Batch (mini-batch)}: the group of images used for one weight update. Here the batch size is 64, so one epoch has $\lceil 12000/64\rceil = 188$ iterations (the last batch has 32 images), and 10 epochs give 1\,880 weight updates in total.
+\item \key{Gradient descent}: to minimise the loss $L$, move each weight $w$ a small step against its gradient, $w \leftarrow w - \eta\,\partial L/\partial w$, where $\eta$ is the \key{learning rate} (here $10^{-3}$). Too large a $\eta$ overshoots, too small learns slowly. Using a mini-batch to estimate the gradient instead of the whole dataset is called \key{stochastic} gradient descent (SGD).
+\item \key{Backpropagation}: the chain rule applied layer by layer from the output back to the input, to compute $\partial L/\partial w$ for every weight efficiently. It runs through \emph{every} layer, conv layers included. Each layer with weights (Conv, FC) computes (i) the gradient of its own weights and biases, which the optimiser uses to update them, and (ii) the gradient with respect to its input, which is passed back to the previous layer. Layers without weights only route gradients: Flatten reshapes them back, ReLU passes them where the input was positive and blocks them elsewhere, max pool sends the gradient only to the position that held the maximum in each window (the others get zero), and dropout blocks the units it switched off. A conv weight's gradient is a sum over all spatial positions where the filter was applied and over the batch.
+\item \key{Regularisation}: any technique that reduces overfitting, usually by limiting how freely the model can fit the training data. Examples: dropout, data augmentation, weight decay, early stopping, a smaller model.
+\item \key{Weight initialisation}: the starting values of the weights. PyTorch's default for conv and linear layers is Kaiming-uniform: weights drawn uniformly from $[-b,b]$ with $b\propto 1/\sqrt{\text{fan-in}}$ (fan-in = number of inputs to a neuron). This keeps the size of activations roughly stable from layer to layer at the start. Different random draws give slightly different final results, hence the fixed seed.
+\end{itemize}
+
+\subsection{Cross-entropy loss}
+
+The network's last layer produces 10 raw scores (logits). Softmax turns them into probabilities that sum to 1:
+\[
+p_i = \frac{e^{z_i}}{\sum_{j=1}^{10} e^{z_j}}, \qquad z_i = \text{logit for class } i .
+\]
+For a single image with true class $c$, the cross-entropy loss is
+\[
+L = -\ln p_c .
+\]
+If the network puts probability 0.9 on the right class, the loss is $0.105$. If it puts 0.1 (a random guess), the loss is $2.303$. If it is confidently wrong, say 0.01, the loss is $4.6$.
+
+Two consequences that matter for interpretation:
+\begin{itemize}[noitemsep]
+\item Loss can get \emph{worse} while accuracy stays the same or even improves, because the loss penalises overconfident wrong answers heavily. This is the classic sign of overfitting: validation accuracy is flat, but validation loss rises.
+\item Accuracy only counts right or wrong. Loss also reflects confidence. That is why the assignment asks for both.
+\end{itemize}
+
+\subsection{Adam}
+
+Plain gradient descent uses the same learning rate for every weight. Adam keeps running averages of each weight's gradient $g_t$ (momentum) and of its square, and scales each weight's step accordingly:
+\begin{align*}
+m_t &= \beta_1 m_{t-1} + (1-\beta_1)\,g_t && \text{(average of gradients)}\\
+v_t &= \beta_2 v_{t-1} + (1-\beta_2)\,g_t^2 && \text{(average of squared gradients)}\\
+\hat m_t &= \frac{m_t}{1-\beta_1^t}, \quad \hat v_t = \frac{v_t}{1-\beta_2^t} && \text{(bias correction, since } m_0=v_0=0)\\
+w_t &= w_{t-1} - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon} &&
+\end{align*}
+The PyTorch defaults are $\beta_1=0.9$, $\beta_2=0.999$, $\epsilon=10^{-8}$, and here $\eta=10^{-3}$. A weight with consistently large gradients has a large $\sqrt{\hat v_t}$, so its step is shrunk; a weight with small gradients gets a relatively bigger step. In practice this needs little tuning, which is why it is the default choice. For the viva, ``adaptive per-weight step sizes plus momentum'' is enough.
+
+\subsection{Dropout}
+
+During training, dropout with $p=0.5$ randomly sets half of a layer's activations to zero on each forward pass. The network cannot rely on any single neuron, so it learns more redundant, robust features. This reduces overfitting.
+
+At evaluation time (\texttt{model.eval()}), dropout is switched off and all neurons are used. This has an important consequence for reading the results:
+
+\begin{quote}
+The ``training accuracy'' you measure \emph{during} an epoch is computed with dropout on and with weights that are still changing, so it is a pessimistic estimate. The same training images evaluated with dropout off after training will give a higher accuracy.
+\end{quote}
+
+This is why the results table reports the training accuracy measured in evaluation mode, while the epoch-by-epoch curves use the running values.
+
+%------------------------------------------------------------------
+\section{The architecture}
+%------------------------------------------------------------------
+
+\subsection{Reading the layers}
+
+The baseline in the brief is:
+\begin{center}
+\small
+Conv(3$\to$32, 5$\times$5) $\to$ Pool $\to$ Conv(32$\to$64, 5$\times$5) $\to$ Pool $\to$ Conv(64$\to$128, 3$\times$3) $\to$ Conv(128$\to$128, 3$\times$3) $\to$ Conv(128$\to$128, 3$\times$3) $\to$ Pool $\to$ Flatten $\to$ FC(8192$\to$512) $\to$ FC(512$\to$256) $\to$ FC(256$\to$10)
+\end{center}
+with ReLU after every layer except the last, and dropout(0.5) after the first two FC layers.
+
+Think of it in two halves:
+\begin{itemize}[noitemsep]
+\item \key{Feature extractor} (the five conv layers). It turns pixels into a compact set of learned features: edges and colours early, textures and parts later.
+\item \key{Classifier} (the FC layers). It takes those features and decides which of the 10 classes they most resemble.
+\end{itemize}
+
+\subsection{Why the sizes are 64, 32, 16, 8}
+
+For a convolution or pooling layer, the output width is
+\[
+W_{\text{out}} = \left\lfloor\frac{W_{\text{in}} - F + 2P}{S}\right\rfloor + 1 .
+\]
+For a 5$\times$5 kernel with padding 2 and stride 1: $(64-5+4)/1+1 = 64$. For a 3$\times$3 kernel with padding 1: also unchanged. Such convolutions are called ``same'' convolutions. So only the max pools shrink the image: each 2$\times$2 pool halves the height and width. There are three pools, so
+\[
+64 \to 32 \to 16 \to 8 .
+\]
+The last conv layer has 128 channels, so flattening gives $128\times 8\times 8 = 8192$ numbers. In Experiment 3 it has 64 channels, so the flattened size is $64\times 8\times 8 = 4096$. This is exactly why the first FC layer's input size changes in Experiment 3, and it is a common source of errors.
+
+\subsection{Flatten and fully connected layers}
+
+\key{Flatten} reshapes the last conv/pool output, a block of channels $\times$ height $\times$ width ($128\times 8\times 8$), into one vector (8192 numbers). It has no weights and does no arithmetic.
+
+A \key{fully connected (FC, Linear) layer} connects every input to every output: $y_j=\sum_i w_{ji}x_i+b_j$. FC($n\to m$) has $nm+m$ parameters and costs $nm$ MACs per image. Compared with a conv layer, where a small filter sees only a local patch and is reused at every position, an FC weight is separate for each input--output pair and used once. So FC layers are parameter-heavy but cheap in arithmetic, and conv layers are the opposite. The convs form the \emph{feature extractor}; the FC layers are the \emph{classifier} that combines all features into 10 class scores (logits).
+
+\subsection{Is the baseline the real AlexNet?}
+
+No, it is a small AlexNet-\emph{style} network. It keeps the ideas (stacked convs, max pools, ReLU, dropout, large FC head) but is scaled down:
+
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+ & Real AlexNet (2012) & This baseline \\
+\midrule
+Input, classes & 224$\times$224, 1000 & 64$\times$64, 10 \\
+Conv1 & 11$\times$11, 96 filters, stride 4 & 5$\times$5, 32 filters, stride 1 \\
+Conv channels & 96, 256, 384, 384, 256 & 32, 64, 128, 128, 128 \\
+FC layers & 4096, 4096, 1000 & 512, 256, 10 \\
+Parameters & about 61M & 4.75M \\
+Extras & local response norm., two GPUs & none \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{What ReLU does}
+
+ReLU is $\max(0,x)$. Without a nonlinearity between layers, a stack of linear layers collapses into a single linear layer, no matter how deep. ReLU is cheap and does not saturate for positive inputs, so gradients flow well through many layers.
+
+%------------------------------------------------------------------
+\section{Parameters versus computation}\label{sec:params}
+%------------------------------------------------------------------
+
+This section is the core of the analysis. Learn it well.
+
+\subsection{Counting parameters}
+
+Notation used in these notes (as taught in class): $K$ = number of filters, $F$ = filter (kernel) size, so each filter is $F\times F$, and $d$ = depth (number of channels) of the input. A conv layer with $K$ filters of size $F\times F$ on an input of depth $d$ has
+\[
+K\,(F^2 d + 1)
+\]
+parameters: each filter has $F^2 d$ weights plus one bias, and there are $K$ filters. An FC layer from $n$ to $m$ units has $m\,(n+1) = n\cdot m + m$ parameters.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Layer & Baseline & Exp 2 & Exp 3 \\
+\midrule
+Conv1 & 2\,432 & 2\,432 & 1\,216 \\
+Conv2 & 51\,264 & 51\,264 & 12\,832 \\
+Conv3 & 73\,856 & 73\,856 & 18\,496 \\
+Conv4 & 147\,584 & 147\,584 & 36\,928 \\
+Conv5 & 147\,584 & 147\,584 & 36\,928 \\
+\midrule
+\emph{Conv total} & 422\,720 & 422\,720 & 106\,400 \\
+\midrule
+FC1 & 4\,194\,816 & 2\,097\,408 & 2\,097\,664 \\
+FC2 & 131\,328 & 32\,896 & 131\,328 \\
+FC3 & 2\,570 & 1\,290 & 2\,570 \\
+\midrule
+\emph{FC total} & 4\,328\,714 & 2\,131\,594 & 2\,231\,562 \\
+\midrule
+\textbf{Total} & \textbf{4\,751\,434} & \textbf{2\,554\,314} & \textbf{2\,337\,962} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Observations worth memorising:
+\begin{itemize}[noitemsep]
+\item In the baseline, about \textbf{91\%} of the parameters are in the FC head, and FC1 alone holds 4.19 million of them. The five conv layers together have only 0.42 million.
+\item Experiment 2 attacks the big block directly, so the parameter count drops by about 46\%.
+\item Experiment 3 shrinks the conv layers to a quarter of their size (halving both input and output channels roughly quarters the weights), but the total only falls by about 51\% because FC1 is still huge.
+\end{itemize}
+
+\subsection{Counting computation}
+
+Parameters measure \emph{memory}. Computation is a different quantity. A conv filter is \emph{reused at every spatial position}, so a conv layer performs
+\[
+\text{MACs} = H_{out}\cdot W_{out}\cdot K\cdot F^2\cdot d
+\]
+multiply-accumulate operations (one MAC is one multiplication plus one addition, $acc \leftarrow acc + a\cdot b$; a MAC is about 2 FLOPs), while an FC weight is used exactly once per image. Early conv layers run on large feature maps (64$\times$64 = 4096 positions), so a small number of weights does a lot of work.
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Layer (output size) & Baseline & Exp 2 & Exp 3 \\
+\midrule
+Conv1 (64$\times$64) & 9.8\,M & 9.8\,M & 4.9\,M \\
+Conv2 (32$\times$32) & 52.4\,M & 52.4\,M & 13.1\,M \\
+Conv3 (16$\times$16) & 18.9\,M & 18.9\,M & 4.7\,M \\
+Conv4 (16$\times$16) & 37.7\,M & 37.7\,M & 9.4\,M \\
+Conv5 (16$\times$16) & 37.7\,M & 37.7\,M & 9.4\,M \\
+\midrule
+\emph{Conv total} & 156.6\,M & 156.6\,M & 41.6\,M \\
+FC total & 4.3\,M & 2.1\,M & 2.2\,M \\
+\midrule
+\textbf{Total MACs} & \textbf{161.0\,M} & \textbf{158.8\,M} & \textbf{43.8\,M} \\
+Relative to baseline & 100\% & 99\% & 27\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is a striking mismatch:
+
+\begin{itemize}[noitemsep]
+\item In the baseline, \textbf{91\% of the parameters are in the FC head, but 97\% of the arithmetic is in the conv layers}.
+\item Experiment 2 halves the parameters but saves only about 1\% of the compute.
+\item Experiment 3 has slightly \emph{fewer} parameters than Experiment 2, but needs only about a \emph{quarter} of the computation.
+\end{itemize}
+
+So ``fewer parameters'' does not mean ``faster''. That is the central message of the cost analysis. You can quote it as: \emph{parameters cost memory, convolutions cost time}.
+
+Why is Conv2 the most expensive layer? It uses 5$\times$5 kernels (25 weights per channel, versus 9) on a 32$\times$32 map with 32 input and 64 output channels. The count is $1024\times 32\times 64\times 25 = 52.4$\,M.
+
+\subsection{Backward pass}
+
+Training runs a forward pass and a backward pass. The backward pass costs roughly twice the forward pass, so training time scales roughly like the MAC counts above. Your timing should therefore show Experiment 3 clearly faster than the other two, and Experiment 2 only slightly faster than the baseline, if at all. Small differences between the baseline and Experiment 2 can be swamped by timing noise from the machine, so be careful not to over-interpret them.
+
+%------------------------------------------------------------------
+\section{Generalisation, overfitting and convergence}
+%------------------------------------------------------------------
+
+\subsection{Definitions}
+
+\begin{itemize}[noitemsep]
+\item \key{Underfitting}: the model cannot even fit the training data. Both training and validation accuracy are low, and training loss is still high.
+\item \key{Overfitting}: the model fits the training data well but performs noticeably worse on unseen data. Training accuracy keeps rising while validation accuracy plateaus, and validation loss stops falling and begins to \emph{rise}.
+\item \key{Generalisation gap}: training accuracy minus validation accuracy. A large positive gap means overfitting.
+\item \key{Convergence}: training has settled, meaning curves have flattened and further epochs would change little. If the training loss is still dropping steeply at epoch 10, the model has not converged and 10 epochs was too few to see its final behaviour.
+\end{itemize}
+
+\subsection{Why overfitting is likely in this setup}
+
+Consider the ingredients: only 12\,000 training images, no augmentation, a network with 4.75 million parameters (roughly 400 parameters per training image), and Adam at a fairly high learning rate. Such a network has enough capacity to start memorising the training set within a few epochs. Dropout helps but will not fully prevent it.
+
+\subsection{How to read the curves}
+
+\begin{center}
+\begin{tabular}{p{5.2cm}p{9cm}}
+\toprule
+What you see & What it means \\
+\midrule
+Both losses falling together & Still learning general patterns. \\
+Training loss falling, validation loss flat & Starting to overfit. \\
+Training loss falling, validation loss rising & Overfitting is under way. The epoch with the lowest validation loss is where useful learning ended. \\
+Both accuracies low and close & Underfitting, or the model is too small. \\
+Curves flat near the end & Converged. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%------------------------------------------------------------------
+\section{Expected results and the reasoning behind them}
+%------------------------------------------------------------------
+
+\hedge{Important: everything in this section is a prediction made before looking at the results, based on general experience with small CNNs on CIFAR-10. It is here so that you can tell whether your actual results are sensible. The report must be written from the actual numbers, and if they disagree with these predictions, explain why rather than forcing them to match.}
+
+\subsection{Experiment 1: baseline}
+
+\begin{itemize}[noitemsep]
+\item \key{Epoch 1}: accuracy well above 10\%, likely 35 to 50\%; loss starting near 2.3 and dropping below 1.7.
+\item \key{Validation accuracy}: rises quickly over the first few epochs and then flattens. A final value in the region of 65 to 75\% is plausible for this setup. This is far below the 90\%+ that modern networks reach, because the training set is small and there is no augmentation.
+\item \key{Training accuracy}: keeps climbing, potentially reaching 85 to 95\% by epoch 10.
+\item \key{Validation loss}: likely reaches its minimum around epochs 3 to 6 and then rises.
+\item \key{Conclusion I would expect}: clear signs of overfitting in the later epochs, with a generalisation gap of perhaps 15 to 25 points. Training has converged in the sense that the training data is nearly memorised, but validation performance has stopped improving.
+\end{itemize}
+
+\subsection{Experiment 2: smaller classifier}
+
+Reasoning: the first FC layer is a huge matrix (4.19M weights) that connects every one of the 8192 conv features to 512 units. The information the classifier needs is mostly already in the 8192 features. Halving the width to 256 units discards a lot of capacity in a place where it is probably redundant.
+
+\begin{itemize}[noitemsep]
+\item \key{Parameters}: 2.55\,M, about 46\% lower.
+\item \key{Validation accuracy}: about the same as the baseline, likely within $\pm 2$ points. Given the sampling noise of roughly 1 point on 2\,000 images, a difference in this range is not evidence that one is better.
+\item \key{Training accuracy and gap}: possibly slightly lower, because there is less capacity to memorise, and perhaps a slightly smaller gap.
+\item \key{Training time}: nearly unchanged, since the conv layers dominate the cost.
+\item \key{Interpretation}: most of the baseline's classifier capacity was not needed. Most of the model's \emph{useful} capacity sits in the feature extractor, and the FC head is largely spare capacity that mainly helps memorisation.
+\end{itemize}
+
+\subsection{Experiment 3: narrower convolutions}
+
+Reasoning: with half the filters, each layer can detect fewer distinct patterns, so the feature representation is poorer. The classifier receives 4096 features instead of 8192, and those features carry less information.
+
+\begin{itemize}[noitemsep]
+\item \key{Parameters}: 2.34\,M, roughly half of the baseline.
+\item \key{Compute and training time}: about a quarter of the MACs, so a substantially shorter training time. In my quick timing tests on this machine a training step for Experiment 3 took about one third of the baseline's time, which supports this.
+\item \key{Validation accuracy}: plausibly a little lower than the baseline, perhaps by 1 to 5 points, because the features are less expressive. It could also be close to equal, since this is a hard task for a small dataset and both networks are limited by the data rather than the capacity.
+\item \key{Generalisation gap}: probably smaller, as there is less capacity to memorise. Note that FC1 is still large (2.1M weights), so the model can still overfit substantially.
+\item \key{Interpretation}: the conv layers carry the representational power. Cutting them costs some accuracy, but buys a large reduction in computation, which is a much better trade than Experiment 2 offers on the compute axis.
+\end{itemize}
+
+\subsection{The comparison you are ultimately asked to make}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & Baseline & Exp 2 & Exp 3 \\
+\midrule
+Parameters & 4.75\,M & 2.55\,M & 2.34\,M \\
+MACs per image & 161\,M & 159\,M & 44\,M \\
+Expected val.\ accuracy & reference & $\approx$ same & same or slightly lower \\
+Expected gap & largest & similar or smaller & smaller \\
+Expected time & reference & $\approx$ same & much lower \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The story to tell: Experiment 2 saves memory but not time; Experiment 3 saves both, at some risk to accuracy. Neither model was tuned, so a model that matches the baseline in accuracy with a smaller footprint is the better design.
+
+\subsection{What actually happened (local CPU run)}
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+Model & Train acc & Val acc & Test acc & Val loss & Gap & Params & Time (s) \\
+\midrule
+Baseline & 83.7\% & 63.4\% & 62.5\% & 1.097 & 20.3 & 4.75M & 445 \\
+Exp 2 & 75.8\% & 61.2\% & 62.0\% & 1.133 & 14.6 & 2.55M & 444 \\
+Exp 3 & 80.6\% & 61.3\% & 63.3\% & 1.153 & 19.3 & 2.34M & 164 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Compared with the predictions above:
+\begin{itemize}[noitemsep]
+\item \key{Right}: Exp 2 halves the parameters but the training time is unchanged (444 s vs 445 s). Exp 3 is 2.7 times faster. Both reduced models have similar validation accuracy to the baseline within about 2 points, and Exp 2 has the smallest gap.
+\item \key{Wrong}: validation accuracy was 61 to 63\%, below the 65 to 75\% I guessed. Validation loss did \emph{not} bottom out at epochs 3 to 6 and then rise. In the baseline it kept falling to epoch 9 and was flat after that, while the training loss and training accuracy were still improving at epoch 10. The honest description is: clear generalisation gap, early overfitting (validation loss flat while training loss falls), and not fully converged in 10 epochs.
+\item \key{Speed-up smaller than the MAC ratio}: Exp 3 has 27\% of the MACs but took 37\% of the time (164 vs 445 s), since FC layers, data handling and other overheads do not shrink.
+\item \key{Noise}: the Exp 3 validation accuracy went from 64.0\% at epoch 9 to 61.3\% at epoch 10, and the test accuracies (62.5, 62.0, 63.3) reverse the validation ordering. So 2-point differences between models are suggestive, not conclusive. The dataset was a JPEG copy of CIFAR-10.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Reading the three plots}
+%------------------------------------------------------------------
+
+\begin{enumerate}
+\item \key{Accuracy versus epoch} (train and validation for all models). Look for: how fast each model rises, where validation accuracy flattens, and how far the training curve pulls away from the validation curve. The distance is the generalisation gap.
+\item \key{Loss versus epoch}. Look for the epoch where validation loss bottoms out and starts rising. That is your evidence for overfitting. Compare how early it happens in each model.
+\item \key{Validation accuracy versus number of parameters}. Three points. If Experiment 2 and Experiment 3 sit to the left of the baseline at about the same height, then parameters were being wasted. Remember that this plot has \emph{parameters} on the x-axis, not compute. Experiment 3 and Experiment 2 are close together horizontally, but very different in computational cost. Say this explicitly in the analysis, because the plot alone hides it.
+\end{enumerate}
+
+%------------------------------------------------------------------
+\section{The proposed modification}
+%------------------------------------------------------------------
+
+The assignment wants \emph{one} additional modification, argued but \emph{not trained}. Because you cannot show numbers, the marks come from the quality of the reasoning.
+
+\subsection{A candidate: add batch normalisation after each convolution}
+
+\key{What it does.} Batch normalisation standardises each channel's outputs over the current mini-batch, then applies a learned scale $\gamma$ and shift $\beta$:
+\[
+\hat x = \frac{x-\mu_B}{\sqrt{\sigma_B^2+\epsilon}}, \qquad y = \gamma\hat x + \beta ,
+\]
+where $\mu_B,\sigma_B^2$ are the mean and variance of that channel over the batch (at evaluation time, running averages stored during training are used instead). It adds only $2K$ parameters per conv layer (with $K$ filters), which is a few hundred numbers in total, and a very small amount of extra computation.
+
+\key{Why it should help the accuracy--computation trade-off.}
+\begin{itemize}[noitemsep]
+\item It stabilises the distribution of each layer's inputs, which typically allows faster convergence at the same learning rate. In a fixed 10-epoch budget, that means more useful progress per epoch.
+\item It has a mild regularising effect, because each sample is normalised using noisy batch statistics. That can slightly reduce the generalisation gap.
+\item Since it improves accuracy for almost no extra cost, it makes the \emph{narrow} network of Experiment 3 more competitive. The reduced-width model already saves about 73\% of the computation, so recovering some of its lost accuracy would move it further toward a better trade-off.
+\end{itemize}
+
+\key{Expected effect.} Faster early convergence, validation accuracy a few points higher than the same model without it, a negligible change in parameters (well under 1\%) and a small increase in run time from the normalisation operations.
+
+\key{Risks to mention.} Batch statistics are noisy with small batches (64 is fine). Normalisation behaves differently in training and evaluation mode, so \texttt{model.eval()} matters even more. It does not remove the large FC head's tendency to overfit.
+
+\subsection{Alternatives, if you want a second angle}
+
+\begin{itemize}[noitemsep]
+\item \key{Global average pooling instead of Flatten + FC1}: averages each 8$\times$8 channel down to one number, so 128 channels give a 128-vector instead of 8192. This removes the 4.19M-weight layer entirely. Very large parameter saving, but accuracy changes in a less predictable way, since spatial layout is thrown away.
+\item \key{Depthwise-separable convolutions}: split a conv into a per-channel $F\times F$ filter (depthwise) followed by a 1$\times$1 conv that mixes channels (pointwise). The cost per position falls from $K F^2 d$ to $F^2 d + K d$, about $1/F^2$ of the original for large $K$ (roughly 9 times fewer for 3$\times$3). This targets the real source of computation.
+\item \key{Replacing the 5$\times$5 Conv2 with two stacked 3$\times$3 convs}: the \emph{receptive field} (the input region that influences one output value) is the same, 5$\times$5, but the weights per channel pair drop from 25 to $2\times 9=18$, and there is an extra ReLU in between. This is the idea behind VGG.
+\end{itemize}
+
+Pick one and defend it; do not list all of them in the final analysis.
+
+%------------------------------------------------------------------
+\section{Likely questions and short answers}
+%------------------------------------------------------------------
+
+\begin{description}
+\item[Why did you reset the seed before each model?] So all models start from the same position in the random stream, and differences come from the architecture, not from luck in the initial weights.
+\item[Why is the test set only used at the end?] If it influenced any decision, its accuracy would be an optimistic estimate of real-world performance.
+\item[Why can validation loss rise while accuracy stays flat?] The model becomes overconfident on the examples it gets wrong. Loss penalises confident mistakes heavily, but accuracy does not care about confidence.
+\item[Why is the training accuracy in the table higher than in the plot?] The plot uses running values measured with dropout on while weights were changing. The table uses a separate pass in evaluation mode after training.
+\item[Does fewer parameters mean faster training?] No. Convolutions reuse each weight across many positions, so they dominate the computation even though they hold few parameters. Experiment 2 and Experiment 3 have similar parameter counts but very different costs.
+\item[Is a 1-point difference between models meaningful?] Not here. Validation accuracy on 2\,000 images has a sampling error of about 1 point, and there is only one run per model.
+\item[What limits the accuracy overall?] Small training set (12\,000), no augmentation, only 10 epochs, and upscaled 32$\times$32 images that contain no extra detail.
+\item[Is the backward pass only in the FC layers?] No. Backprop goes through every layer. Conv and FC layers update their weights and biases; max pool, ReLU, Flatten and dropout have no weights and only route the gradient (max pool sends it to the position that won the max).
+\item[What does max pool update?] Nothing; it has no parameters. In the backward pass the gradient goes only to the maximum position in each window.
+\item[What is a MAC?] One multiply plus one add, $acc\leftarrow acc+a\cdot b$. A conv layer costs $H_{out}W_{out}\,K F^2 d$ MACs; FC($n\to m$) costs $nm$.
+\item[Is the baseline AlexNet?] No, it is a small AlexNet-style network (4.75M parameters, 64$\times$64 input, 10 classes) versus the original 61M-parameter ImageNet model.
+\item[How does normalisation help?] Input normalisation centres and scales pixels so gradients are balanced and training is faster and more stable. Batch norm does the same inside the network for each layer's inputs, allowing faster convergence and adding mild regularisation.
+\item[Why does Experiment 3 change the size of FC1's input?] Halving the last conv layer's filters from 128 to 64 reduces the flattened feature vector from $128\cdot 64=8192$ to $64\cdot 64=4096$.
+\end{description}
+
+\end{document}

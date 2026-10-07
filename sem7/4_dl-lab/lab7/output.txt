@@ -1,0 +1,131 @@
+Training samples 10000, test samples 2000, trimmed count at batch 64 is 6
+
+Experiment 1: baseline performance on clean data
+  [clean|MSE|bs64] epoch 1  train_loss 0.8865  train_acc 37.56  test_loss 0.6881  test_acc 55.25  grad 0.9553
+  [clean|MSE|bs64] epoch 2  train_loss 0.5390  train_acc 70.07  test_loss 0.4168  test_acc 79.35  grad 1.2664
+  [clean|MSE|bs64] epoch 3  train_loss 0.3752  train_acc 81.51  test_loss 0.3507  test_acc 80.25  grad 1.7808
+  [clean|MSE|bs64] epoch 4  train_loss 0.3127  train_acc 84.68  test_loss 0.3234  test_acc 82.95  grad 1.9648
+  [clean|MSE|bs64] epoch 5  train_loss 0.2780  train_acc 86.55  test_loss 0.2858  test_acc 85.70  grad 2.0242
+  [clean|MedSE|bs64] epoch 1  train_loss 0.9517  train_acc 23.54  test_loss 0.8848  test_acc 20.60  grad 3.9441
+  [clean|MedSE|bs64] epoch 2  train_loss 0.8063  train_acc 37.17  test_loss 0.7053  test_acc 47.45  grad 4.9690
+  [clean|MedSE|bs64] epoch 3  train_loss 0.7327  train_acc 44.89  test_loss 0.7682  test_acc 41.25  grad 5.6935
+  [clean|MedSE|bs64] epoch 4  train_loss 0.6462  train_acc 49.84  test_loss 0.6197  test_acc 49.55  grad 6.0493
+  [clean|MedSE|bs64] epoch 5  train_loss 0.5742  train_acc 52.52  test_loss 0.5265  test_acc 53.85  grad 5.9389
+  [clean|T-MSE|bs64] epoch 1  train_loss 0.8638  train_acc 37.81  test_loss 0.6250  test_acc 59.90  grad 1.0374
+  [clean|T-MSE|bs64] epoch 2  train_loss 0.4524  train_acc 70.65  test_loss 0.3386  test_acc 77.10  grad 1.3977
+  [clean|T-MSE|bs64] epoch 3  train_loss 0.3075  train_acc 77.19  test_loss 0.2909  test_acc 76.40  grad 1.7913
+  [clean|T-MSE|bs64] epoch 4  train_loss 0.2582  train_acc 79.04  test_loss 0.2548  test_acc 79.30  grad 1.9827
+  [clean|T-MSE|bs64] epoch 5  train_loss 0.2286  train_acc 80.77  test_loss 0.2165  test_acc 80.70  grad 1.9373
+
+Experiment 2: label noise
+ 1000 of 10000 training labels replaced
+  [label10|MSE|bs64] epoch 1  train_loss 0.9157  train_acc 33.13  test_loss 0.7412  test_acc 49.65  grad 0.8949
+  [label10|MSE|bs64] epoch 2  train_loss 0.6558  train_acc 59.05  test_loss 0.4766  test_acc 77.00  grad 1.0905
+  [label10|MSE|bs64] epoch 3  train_loss 0.5143  train_acc 71.68  test_loss 0.3785  test_acc 79.80  grad 1.5188
+  [label10|MSE|bs64] epoch 4  train_loss 0.4549  train_acc 75.41  test_loss 0.3412  test_acc 82.15  grad 1.7185
+  [label10|MSE|bs64] epoch 5  train_loss 0.4242  train_acc 77.48  test_loss 0.2937  test_acc 85.70  grad 1.8130
+  [label10|MedSE|bs64] epoch 1  train_loss 0.9542  train_acc 22.08  test_loss 0.8254  test_acc 26.45  grad 3.9734
+  [label10|MedSE|bs64] epoch 2  train_loss 0.8215  train_acc 37.29  test_loss 0.7014  test_acc 54.45  grad 4.5174
+  [label10|MedSE|bs64] epoch 3  train_loss 0.7224  train_acc 46.41  test_loss 0.7322  test_acc 44.05  grad 5.9588
+  [label10|MedSE|bs64] epoch 4  train_loss 0.6311  train_acc 51.18  test_loss 0.4380  test_acc 59.85  grad 6.7221
+  [label10|MedSE|bs64] epoch 5  train_loss 0.4883  train_acc 54.73  test_loss 0.3276  test_acc 60.55  grad 6.9516
+  [label10|T-MSE|bs64] epoch 1  train_loss 0.8973  train_acc 32.57  test_loss 0.6973  test_acc 53.20  grad 0.9618
+  [label10|T-MSE|bs64] epoch 2  train_loss 0.5662  train_acc 60.59  test_loss 0.3789  test_acc 75.95  grad 1.2404
+  [label10|T-MSE|bs64] epoch 3  train_loss 0.4018  train_acc 70.73  test_loss 0.2931  test_acc 78.65  grad 1.7280
+  [label10|T-MSE|bs64] epoch 4  train_loss 0.3294  train_acc 75.34  test_loss 0.2299  test_acc 84.00  grad 1.9960
+  [label10|T-MSE|bs64] epoch 5  train_loss 0.2892  train_acc 77.34  test_loss 0.2064  test_acc 85.25  grad 1.9952
+ 2000 of 10000 training labels replaced
+  [label20|MSE|bs64] epoch 1  train_loss 0.9379  train_acc 29.53  test_loss 0.7832  test_acc 46.85  grad 0.8404
+  [label20|MSE|bs64] epoch 2  train_loss 0.7463  train_acc 48.87  test_loss 0.5583  test_acc 72.45  grad 0.8885
+  [label20|MSE|bs64] epoch 3  train_loss 0.6363  train_acc 62.38  test_loss 0.4379  test_acc 78.80  grad 1.2653
+  [label20|MSE|bs64] epoch 4  train_loss 0.5830  train_acc 66.09  test_loss 0.3785  test_acc 80.80  grad 1.5389
+  [label20|MSE|bs64] epoch 5  train_loss 0.5560  train_acc 68.17  test_loss 0.3356  test_acc 84.75  grad 1.6522
+  [label20|MedSE|bs64] epoch 1  train_loss 0.9612  train_acc 21.78  test_loss 0.8341  test_acc 38.25  grad 3.8222
+  [label20|MedSE|bs64] epoch 2  train_loss 0.8465  train_acc 32.65  test_loss 0.7553  test_acc 42.40  grad 4.1306
+  [label20|MedSE|bs64] epoch 3  train_loss 0.8023  train_acc 40.73  test_loss 0.6569  test_acc 57.20  grad 4.6639
+  [label20|MedSE|bs64] epoch 4  train_loss 0.7644  train_acc 44.67  test_loss 0.5712  test_acc 57.45  grad 5.2015
+  [label20|MedSE|bs64] epoch 5  train_loss 0.7126  train_acc 47.47  test_loss 0.4541  test_acc 62.45  grad 5.4090
+  [label20|T-MSE|bs64] epoch 1  train_loss 0.9205  train_acc 28.41  test_loss 0.7461  test_acc 48.35  grad 0.8996
+  [label20|T-MSE|bs64] epoch 2  train_loss 0.6651  train_acc 51.12  test_loss 0.4428  test_acc 74.50  grad 1.0580
+  [label20|T-MSE|bs64] epoch 3  train_loss 0.5141  train_acc 62.81  test_loss 0.3245  test_acc 80.30  grad 1.5365
+  [label20|T-MSE|bs64] epoch 4  train_loss 0.4527  train_acc 66.90  test_loss 0.2640  test_acc 82.45  grad 1.8726
+  [label20|T-MSE|bs64] epoch 5  train_loss 0.4196  train_acc 68.63  test_loss 0.2357  test_acc 85.00  grad 1.9440
+
+Experiment 3: input noise
+ 1000 of 10000 training images corrupted
+  [input10|MSE|bs64] epoch 1  train_loss 0.8868  train_acc 37.43  test_loss 0.6892  test_acc 55.00  grad 0.9541
+  [input10|MSE|bs64] epoch 2  train_loss 0.5397  train_acc 70.03  test_loss 0.4171  test_acc 79.25  grad 1.2662
+  [input10|MSE|bs64] epoch 3  train_loss 0.3753  train_acc 81.48  test_loss 0.3499  test_acc 80.30  grad 1.7800
+  [input10|MSE|bs64] epoch 4  train_loss 0.3126  train_acc 84.60  test_loss 0.3231  test_acc 83.05  grad 1.9610
+  [input10|MSE|bs64] epoch 5  train_loss 0.2779  train_acc 86.63  test_loss 0.2838  test_acc 85.70  grad 2.0165
+  [input10|MedSE|bs64] epoch 1  train_loss 0.9361  train_acc 26.72  test_loss 0.7688  test_acc 50.95  grad 4.2966
+  [input10|MedSE|bs64] epoch 2  train_loss 0.7654  train_acc 43.78  test_loss 0.7004  test_acc 46.75  grad 5.6276
+  [input10|MedSE|bs64] epoch 3  train_loss 0.6297  train_acc 50.70  test_loss 0.6558  test_acc 49.35  grad 6.8620
+  [input10|MedSE|bs64] epoch 4  train_loss 0.4751  train_acc 56.29  test_loss 0.2742  test_acc 62.00  grad 6.3333
+  [input10|MedSE|bs64] epoch 5  train_loss 0.2551  train_acc 61.97  test_loss 0.1829  test_acc 64.35  grad 6.9235
+  [input10|T-MSE|bs64] epoch 1  train_loss 0.8642  train_acc 37.57  test_loss 0.6266  test_acc 59.80  grad 1.0356
+  [input10|T-MSE|bs64] epoch 2  train_loss 0.4533  train_acc 70.51  test_loss 0.3390  test_acc 77.20  grad 1.3990
+  [input10|T-MSE|bs64] epoch 3  train_loss 0.3077  train_acc 77.10  test_loss 0.2903  test_acc 76.45  grad 1.7950
+  [input10|T-MSE|bs64] epoch 4  train_loss 0.2582  train_acc 79.03  test_loss 0.2549  test_acc 79.35  grad 1.9691
+  [input10|T-MSE|bs64] epoch 5  train_loss 0.2284  train_acc 80.79  test_loss 0.2163  test_acc 80.75  grad 1.9242
+ 2000 of 10000 training images corrupted
+  [input20|MSE|bs64] epoch 1  train_loss 0.8870  train_acc 37.34  test_loss 0.6902  test_acc 54.70  grad 0.9522
+  [input20|MSE|bs64] epoch 2  train_loss 0.5403  train_acc 69.94  test_loss 0.4175  test_acc 79.30  grad 1.2666
+  [input20|MSE|bs64] epoch 3  train_loss 0.3755  train_acc 81.51  test_loss 0.3492  test_acc 80.55  grad 1.7815
+  [input20|MSE|bs64] epoch 4  train_loss 0.3126  train_acc 84.53  test_loss 0.3236  test_acc 83.00  grad 1.9575
+  [input20|MSE|bs64] epoch 5  train_loss 0.2780  train_acc 86.77  test_loss 0.2825  test_acc 85.80  grad 2.0197
+  [input20|MedSE|bs64] epoch 1  train_loss 0.9316  train_acc 28.08  test_loss 0.7984  test_acc 41.20  grad 4.3264
+  [input20|MedSE|bs64] epoch 2  train_loss 0.7872  train_acc 42.53  test_loss 0.7037  test_acc 47.00  grad 5.0147
+  [input20|MedSE|bs64] epoch 3  train_loss 0.6927  train_acc 48.62  test_loss 0.6073  test_acc 50.45  grad 6.1318
+  [input20|MedSE|bs64] epoch 4  train_loss 0.5759  train_acc 51.97  test_loss 0.5578  test_acc 52.10  grad 6.1705
+  [input20|MedSE|bs64] epoch 5  train_loss 0.5074  train_acc 54.05  test_loss 0.4639  test_acc 53.90  grad 6.2797
+  [input20|T-MSE|bs64] epoch 1  train_loss 0.8647  train_acc 37.55  test_loss 0.6284  test_acc 59.80  grad 1.0329
+  [input20|T-MSE|bs64] epoch 2  train_loss 0.4540  train_acc 70.50  test_loss 0.3392  test_acc 77.15  grad 1.3999
+  [input20|T-MSE|bs64] epoch 3  train_loss 0.3078  train_acc 77.04  test_loss 0.2891  test_acc 76.75  grad 1.7944
+  [input20|T-MSE|bs64] epoch 4  train_loss 0.2583  train_acc 79.02  test_loss 0.2555  test_acc 79.20  grad 1.9710
+  [input20|T-MSE|bs64] epoch 5  train_loss 0.2284  train_acc 80.77  test_loss 0.2148  test_acc 80.80  grad 1.9234
+
+Experiment 4: outlier sensitivity
+  MSE: 2.573107 -> 10.144366  (+294.25%)
+  MedSE: 2.573609 -> 2.580293  (+0.26%)
+  T-MSE: 2.545176 -> 2.556539  (+0.45%)
+
+Experiment 5: gradient behaviour
+  MSE: loss 2.573107  ||grad||_2 4.211414  samples with nonzero dL/ds_i 64/64
+  MedSE: loss 2.573609  ||grad||_2 8.045245  samples with nonzero dL/ds_i 1/64
+  T-MSE: loss 2.545176  ||grad||_2 4.109985  samples with nonzero dL/ds_i 58/64
+  MedSE gradient equals the gradient of sample 11 alone: ||difference||_2 = 0.000e+00
+
+Experiment 6: effect of batch size
+  [bs16|MSE|bs16] epoch 1  train_loss 0.5493  train_acc 65.71  test_loss 0.2933  test_acc 85.90  grad 2.5464
+  [bs16|MSE|bs16] epoch 2  train_loss 0.2718  train_acc 86.18  test_loss 0.2082  test_acc 89.70  grad 3.1071
+  [bs16|MSE|bs16] epoch 3  train_loss 0.2102  train_acc 89.44  test_loss 0.1791  test_acc 91.10  grad 2.6354
+  [bs16|MSE|bs16] epoch 4  train_loss 0.1701  train_acc 91.76  test_loss 0.1431  test_acc 93.15  grad 2.2695
+  [bs16|MSE|bs16] epoch 5  train_loss 0.1420  train_acc 93.30  test_loss 0.1158  test_acc 94.70  grad 2.0169
+  [bs16|MedSE|bs16] epoch 1  train_loss 0.6547  train_acc 46.41  test_loss 0.3426  test_acc 61.05  grad 6.0477
+  [bs16|MedSE|bs16] epoch 2  train_loss 0.2633  train_acc 62.46  test_loss 0.1120  test_acc 63.05  grad 4.8091
+  [bs16|MedSE|bs16] epoch 3  train_loss 0.0822  train_acc 72.76  test_loss 0.0486  test_acc 70.60  grad 2.3550
+  [bs16|MedSE|bs16] epoch 4  train_loss 0.0423  train_acc 73.97  test_loss 0.0083  test_acc 73.35  grad 1.5727
+  [bs16|MedSE|bs16] epoch 5  train_loss 0.0400  train_acc 74.43  test_loss 0.0070  test_acc 73.85  grad 1.3826
+  [bs16|T-MSE|bs16] epoch 1  train_loss 0.5093  train_acc 64.36  test_loss 0.2176  test_acc 83.85  grad 2.6291
+  [bs16|T-MSE|bs16] epoch 2  train_loss 0.2194  train_acc 85.05  test_loss 0.1302  test_acc 88.80  grad 3.1234
+  [bs16|T-MSE|bs16] epoch 3  train_loss 0.1609  train_acc 88.66  test_loss 0.1004  test_acc 90.75  grad 2.7025
+  [bs16|T-MSE|bs16] epoch 4  train_loss 0.1224  train_acc 90.49  test_loss 0.0632  test_acc 92.80  grad 2.2881
+  [bs16|T-MSE|bs16] epoch 5  train_loss 0.0988  train_acc 92.09  test_loss 0.0435  test_acc 93.35  grad 1.9951
+  [bs128|MSE|bs128] epoch 1  train_loss 1.0053  train_acc 31.53  test_loss 0.8327  test_acc 36.90  grad 1.0448
+  [bs128|MSE|bs128] epoch 2  train_loss 0.7630  train_acc 45.28  test_loss 0.6834  test_acc 56.10  grad 0.6402
+  [bs128|MSE|bs128] epoch 3  train_loss 0.6002  train_acc 65.61  test_loss 0.5182  test_acc 72.90  grad 0.8885
+  [bs128|MSE|bs128] epoch 4  train_loss 0.4682  train_acc 76.82  test_loss 0.4360  test_acc 76.60  grad 1.1094
+  [bs128|MSE|bs128] epoch 5  train_loss 0.3892  train_acc 81.26  test_loss 0.3764  test_acc 79.60  grad 1.3189
+  [bs128|MedSE|bs128] epoch 1  train_loss 1.0286  train_acc 18.58  test_loss 0.8648  test_acc 29.30  grad 4.0294
+  [bs128|MedSE|bs128] epoch 2  train_loss 0.8380  train_acc 35.11  test_loss 0.8803  test_acc 23.50  grad 4.4315
+  [bs128|MedSE|bs128] epoch 3  train_loss 0.7994  train_acc 40.05  test_loss 0.7246  test_acc 46.95  grad 5.1394
+  [bs128|MedSE|bs128] epoch 4  train_loss 0.7347  train_acc 45.03  test_loss 0.6866  test_acc 46.65  grad 5.5260
+  [bs128|MedSE|bs128] epoch 5  train_loss 0.6805  train_acc 48.32  test_loss 0.5782  test_acc 53.10  grad 6.3199
+  [bs128|T-MSE|bs128] epoch 1  train_loss 0.9897  train_acc 29.75  test_loss 0.8242  test_acc 36.55  grad 1.0574
+  [bs128|T-MSE|bs128] epoch 2  train_loss 0.7476  train_acc 45.32  test_loss 0.6437  test_acc 60.95  grad 0.7228
+  [bs128|T-MSE|bs128] epoch 3  train_loss 0.5300  train_acc 67.88  test_loss 0.4386  test_acc 70.75  grad 1.0081
+  [bs128|T-MSE|bs128] epoch 4  train_loss 0.3847  train_acc 74.38  test_loss 0.3736  test_acc 72.70  grad 1.1703
+  [bs128|T-MSE|bs128] epoch 5  train_loss 0.3186  train_acc 77.04  test_loss 0.3021  test_acc 75.95  grad 1.3538
+
+Figures, tables and CSV files written.
